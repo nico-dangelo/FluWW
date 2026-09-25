@@ -57,7 +57,7 @@ CDC_Wastewater_Data_for_Influenza_A_20260910_clean <- CDC_Wastewater_Data_for_In
   gsub(",", "", x)
 })
 # Import CHC data for comparison ------------------------------------------
-county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")
+county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")|> mutate(year_week=yearweek(year_week_dt))
 
 
 #Check fips encoding and counts
@@ -114,7 +114,7 @@ wwscan_flu_city_agg_with_county_info_clean |> summarize(n_NA = sum(is.na(Influen
 
 #compute year_week for wastewater data to match flu data
 wwscan_flu_city_agg_with_county_info_clean_yw <- wwscan_flu_city_agg_with_county_info_clean |> mutate(year_week =
-                                                                                                        strftime(collection_date, format = "%G-%V")) |> rename(county_fips = FIPS) |> relocate(year_week, .after =
+                                                                                                       yearweek(collection_date)) |> rename(county_fips = FIPS) |> relocate(year_week, .after =
                                                                                                                                                                                                  collection_date)
 
 #Align CHC and WW series
