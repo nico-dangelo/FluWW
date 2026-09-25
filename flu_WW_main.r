@@ -1,21 +1,39 @@
 
 
 # Libraries ---------------------------------------------------------------
-library(tidyverse)
-# library(spiralize)
-library(zoo)
-library(magrittr)
-library(lubridate)
-library(slider)
-library(sp)
-library(sf)
-library(RColorBrewer)
-library(TSstudio)
-library(DescTools)
-library(patchwork)
-library(plotly)
-library(knitr)
-library(gridExtra)
+# library(tidyverse)
+# # library(spiralize)
+# library(zoo)
+# library(magrittr)
+# library(lubridate)
+# library(slider)
+# library(sp)
+# library(sf)
+# library(RColorBrewer)
+# library(TSstudio)
+# library(DescTools)
+# library(patchwork)
+# library(plotly)
+# library(knitr)
+# library(gridExtra)
+pacman::p_load(tidyverse,
+               magrittr,
+               lubridate,
+               zoo,
+               feasts,
+               imputeTS,
+               tsibble,
+               slider,
+               sp,
+               sf,
+               DescTools,
+               plotly,
+               patchwork,
+               gridExtra,
+               surveillance,
+               RColorBrewer,
+               forecast,
+               fable)
 # Data import and variable casting ----------------------------------------
 ##WWSCAN only
 wwscan_flu_city_agg_with_county_info <- readr::read_csv(
@@ -69,15 +87,11 @@ table(NCHS_classifications_common_fips$`2023 Code`) |> prop.table() * 100
 #
 # # Handle NAs and NaNs --------------------------------------------------------------
 # #Replace NaN with NA
-# #make value of most recent non-NA data
-# flu_PBC_clean <- flu_PBC
-# for(i in which(is.na(flu_PBC$Influenza_A_gc_g_dry_weight_pop_wt))) {
-#   flu_PBC_clean$Influenza_A_gc_g_dry_weight_pop_wt[[i]] = flu_PBC_clean$Influenza_A_gc_g_dry_weight_pop_wt[[i-1]]
-# }
 
 wwscan_flu_city_agg_with_county_info |> mutate_all( ~ ifelse(is.nan(.), NA, .)) |> group_by(FIPS) |> summarise(n =
                                                                                                                  n(), n_NA = sum(is.na(Influenza_A_gc_g_dry_weight_pop_wt)))
-wwscan_flu_city_agg_with_county_info_clean <- wwscan_flu_city_agg_with_county_info |> group_by(FIPS)  |> na.locf() |> ungroup()
+#linear interpolation -- formally LOCF
+wwscan_flu_city_agg_with_county_info_clean <- wwscan_flu_city_agg_with_county_info |> group_by(FIPS)  |> na_interpolation() |> ungroup()
 wwscan_flu_city_agg_with_county_info_clean |> summarize(n_NA = sum(is.na(Influenza_A_gc_g_dry_weight_pop_wt)))
 #
 # county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")
@@ -169,49 +183,6 @@ wwscan_flu_ac_season_norm_county_week_matched_keep <- wwscan_flu_ac_season_norm_
 #    mutate(X, conf_flu_norm_ts = zoo(conf_flu_norm, order.by = year_week),
 #           roll_mean_week_ts = zoo(roll_mean_week, order.by = year_week))})
 #
-#  # Apply granger test
-#  # CHC flu predicted by mean ww
-#  granger_CHC_WW_res<- wwscan_flu_ac_season_norm_county_week_ts|> lapply(function(x){if(nrow(x)>=10){granger_df=data.frame(conf_flu_norm=as.numeric(coredata(x$conf_flu_norm_ts)), roll_mean_week=as.numeric(coredata(x$roll_mean_week_ts))); lmtest::grangertest(conf_flu_norm ~ roll_mean_week, order=2, data=granger_df)}})
-#  # Mean WW predicted by CHC flu
-#  granger_WW_CHC_res<- wwscan_flu_ac_season_norm_county_week_ts|> lapply(function(x){if(nrow(x)>=10){granger_df=data.frame(conf_flu_norm=as.numeric(coredata(x$conf_flu_norm_ts)), roll_mean_week=as.numeric(coredata(x$roll_mean_week_ts))); lmtest::grangertest(roll_mean_week~conf_flu_norm, order=2, data=granger_df)}})
-#
-#
-# # Compute Dynamic Time Warp -----------------------------------------------
-# library(dtw)
-#  #lists of series pairs
-# dtw_res<- lapply(wwscan_flu_ac_season_norm_county_week_ts, function(X){dtw(X$conf_flu_norm_ts, X$roll_mean_week_ts)$distance})
-# # Matrices of multivariate series
-# # dtw_mat_res<-
-# # Apply Cluster Permutation test ------------------------------------------
-# library(permutes)
-# #separate linear models
-# cplm_res<- wwscan_flu_ac_season_norm_county_week_ts|> lapply(function(X){clusterperm.lm(conf_flu_norm_ts ~ roll_mean_week_ts, data=X)})
-# #mixed effect linear model
-# # wwscan_flu_ac_season_norm_county_week_ts |> lapply(function(X){clusterperm.lmer(conf_flu_norm_ts~roll_mean_week_ts +(1|county_fips), data=X)})
-# # Compute Transfer Entropy ------------------------------------------------
-# library(RTransferEntropy)
-# te_res<- wwscan_flu_ac_season_norm_county_week_ts|> lapply(function(X){transfer_entropy(X$conf_flu_norm_ts,X$roll_mean_week_ts )})
-#  # Summary tables ----------------------------------------------------------
-#
-#
-# granger_CHC_WW_res |> knitr::kable()
-# granger_WW_CHC_res|> knitr::kable()
-# dtw_res |> knitr::kable()
-# te_res |> knitr::kable()
-
-
-# Function to convert regression summary to data frame
-# summary_to_df <- function(summary_obj) {
-#   coefs <- summary_obj$coefficients
-#   df <- data.frame(
-#     term = rownames(coefs),
-#     estimate = coefs[, "Estimate"],
-#     std.error = coefs[, "Std. Error"],
-#     statistic = coefs[, "t value"],
-#     p.value = coefs[, "Pr(>|t|)"]
-#   )
-#   return(df)
-# }
 
 
 # Line and seasonality plots ----------------------------------------------
@@ -489,37 +460,6 @@ ww_chc_county_season_2022_2024_log_line <- ww_chc_county_season_long |>
 #              colour = county_fips, linetype = series_name)) +
 #   geom_line(data = ww_chc_county_season_long |> filter(series_name == "conf_flu_norm")) +
 #   geom_point(data = ww_chc_county_season_long |> filter(series_name == "roll_mean_week"))  + theme_minimal() + facet_free(~variable, scales="free_y")
-# Heatmaps ----------------------------------------------------------------
-
-# Heatmap for conf_flu_norm
-# h_cfn<-  ww_chc_county_season_long |>
-#    filter(series_name == "conf_flu_norm") |>
-#    ggplot(aes(x = year_week, y = county_fips, fill = value)) +
-#    geom_tile() + scale_fill_viridis_c()+
-#    # scale_fill_viridis_c(trans = "log1p") +
-#    theme_minimal() +
-#    labs(title = "Confirmed Flu Normalized", x = "Year-Week", y = "County FIPS")
-#  ggplotly(h_cfn)
-#  # Heatmap for roll_mean_week
-# h_rmw<-  ww_chc_county_season_long |>
-#    filter(series_name == "roll_mean_week") |>
-#    ggplot(aes(x = year_week, y = county_fips, fill = value)) +
-#    geom_tile() + scale_fill_viridis_c() +
-#    # scale_fill_viridis_c(trans = "log1p") +
-#    theme_minimal() +
-#    labs(title = "Weekly Mean", x = "Year-Week", y = "County FIPS")
-# # ggplotly(h_rmw + h_cfn)
-# Combined heatmap
-# ww_chc_county_season_long |>
-#   ggplot(aes(x = year_week, y = fct_rev(fct_inorder(paste(county_fips, series_name, sep = " - "))),
-#              fill = value)) +
-#   geom_tile() +
-#   scale_fill_viridis_c(trans = "log") +
-#   theme_minimal() +
-#   labs(title = "Wastewater and Flu Metrics by County",
-#        x = "Year-Week",
-#        y = "County FIPS - Series",
-#        fill = "Value (log scale)")
 
 # Separate plots for fips representing grouped counties -------------------
 
