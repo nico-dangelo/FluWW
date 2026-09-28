@@ -125,6 +125,5 @@ dev.off()
 
 
 
-wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
-  filter(county_fips %in% counties_to_keep)
+
 
