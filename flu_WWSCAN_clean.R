@@ -85,20 +85,16 @@ counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
   pull(county_fips)
 
 #Linear interpolation on missing data
-wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed= na_interpolation(Influenza_A_gc_g_dry_weight_pop)) 
+wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed = na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum)) 
 #plot missingness comparisons by county
 # Prepare data for plotting: pivot longer to compare original vs imputed
-plot_data <- wwscan_flu_city_agg_with_county_info_clean_ts |>
+plot_data <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
   as_tibble() |>
-  mutate(original = Influenza_A_gc_g_dry_weight_pop_wt_sum) |>
-  select(year_week, county_fips, original) |>
-  bind_cols(
-    wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
-      as_tibble() |>
-      select(Influenza_A_gc_g_dry_weight_pop_wt_sum) |>
-      rename(imputed = Influenza_A_gc_g_dry_weight_pop_wt_sum)
-  ) |>
+  select(year_week, county_fips, 
+         original = Influenza_A_gc_g_dry_weight_pop_wt_sum,
+         imputed = Influenza_A_gc_g_dry_weight_pop_wt_imputed) |>
   pivot_longer(cols = c(original, imputed), names_to = "type", values_to = "value")
+
 
 # Settings: 2 columns, N rows per page 
 n_cols <- 2
@@ -131,11 +127,4 @@ dev.off()
 
 wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
   filter(county_fips %in% counties_to_keep)
-#Check implicit gaps in imputed data that remain
-wwscan_flu_city_agg_with_county_info_clean_ts_imputed_gaps_plot <- count_gaps(wwscan_flu_city_agg_with_county_info_clean_ts_imputed)|> arrange(county_fips)|> ggplot(aes(x=county_fips, colour=county_fips))+
-  geom_linerange(aes(ymin = .from, ymax = .to)) +
-  geom_point(aes(y = .from)) +
-  geom_point(aes(y = .to)) +
-  coord_flip() +
-  theme(legend.position = "bottom")
-ggplotly(wwscan_flu_city_agg_with_county_info_clean_ts_imputed_gaps_plot)
+
