@@ -39,7 +39,7 @@ common_FIPS <- intersect(
 )
 NCHS_classifications <- read_csv("2023 NCHS classifications.csv")
 NCHS_classifications$`2023 Code` <-  as.factor(NCHS_classifications$`2023 Code`)
-NCHS_classifications_common_fips <- NCHS_classifications |> filter(Location %in% common_FIPS)
+NCHS_classifications_common_fips <- NCHS_classifications |> filter(Location %in% common_FIPS) |> rename(county_fips=Location)
 
 wwscan_flu_city_agg_with_county_info_clean<-wwscan_flu_city_agg_with_county_info |> 
   mutate(across(where(is.numeric), ~ ifelse(is.nan(.), NA, .)))
@@ -172,4 +172,59 @@ for (page in 1:n_pages) {
 }
 
 dev.off()
+
+
+# Faceted standardized plots by Urbanization ------------------------------
+
+#Join NCHS level to standardized series
+wwscan_flu_city_agg_with_county_info_ts_standard_urb<- left_join(wwscan_flu_city_agg_with_county_info_ts_standard, NCHS_classifications_common_fips, by="county_fips")
+
+# Prepare data for plotting: standardized series grouped by NCHS code
+plot_data_nchs <- wwscan_flu_city_agg_with_county_info_ts_standard_urb |>
+  as_tibble() |>
+  select(year_week, county_fips, `2023 Code`,
+         value = Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled)
+
+# Get unique NCHS codes and sort them
+nchs_codes <- unique(plot_data_nchs$`2023 Code`) |> sort()
+
+# Create paginated plots grouped by NCHS code
+pdf("influenza_standardized_by_nchs_code.pdf", width = 14, height = 11)
+
+for (nchs_code in nchs_codes) {
+  # Filter data for this NCHS code
+  data_nchs <- plot_data_nchs |>
+    filter(`2023 Code` == nchs_code)
+  
+  # Get counties for this NCHS code
+  counties_nchs <- unique(data_nchs$county_fips)
+  n_counties <- length(counties_nchs)
+  counties_per_page <- 6  # 3 rows x 2 columns
+  n_pages <- ceiling(n_counties / counties_per_page)
+  
+  # Create plots for each page within this NCHS code
+  for (page in 1:n_pages) {
+    start_idx <- (page - 1) * counties_per_page + 1
+    end_idx <- min(page * counties_per_page, n_counties)
+    counties_page <- counties_nchs[start_idx:end_idx]
+    
+    # Create plot
+    p <- data_nchs |>
+      filter(county_fips %in% counties_page) |>
+      ggplot(aes(x = year_week, y = value)) +
+      geom_line(color = "steelblue") +
+      facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
+      labs(title = paste(nchs_code, "- Standardized Influenza A (Page", page, "of", n_pages, ")"),
+           x = "Year-Week",
+           y = "Standardized Value") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            plot.title = element_text(size = 12, face = "bold"))
+    
+    print(p)
+  }
+}
+
+dev.off()
+
 
