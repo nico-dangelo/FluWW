@@ -28,7 +28,9 @@ wwscan_flu_city_agg_with_county_info <- readr::read_csv(
     "FIPS"
   )
 )
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean <- readRDS("CDC_Wastewater_Data_for_Influenza_A_20260910_clean.RDS")
+# Import CHC data for comparison ------------------------------------------
+county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")|> mutate(year_week=yearweek(year_week_dt))
+
 
 # common counties
 common_FIPS <- intersect(
@@ -51,7 +53,7 @@ county_flu_ac_season_norm_common <- county_flu_ac_season_norm |> filter(county_f
 
 # Make tsibbles
 #Aggregate to weekly to avoid duplicates
-ß <- wwscan_flu_city_agg_with_county_info_clean_yw_common |>
+wwscan_flu_city_agg_with_county_info_clean_yw_common_aggregate <- wwscan_flu_city_agg_with_county_info_clean_yw_common |>
   group_by(year_week, county_fips) |>
   summarise(
     Influenza_A_gc_g_dry_weight_pop_wt_sum = sum(Influenza_A_gc_g_dry_weight_pop_wt, na.rm = F),
@@ -73,9 +75,17 @@ wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot <- wwscan_flu_city_agg_w
   coord_flip() +
   theme(legend.position = "bottom")
 ggplotly(wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot)
+#Remove counties with inadequate data/avoid excessive interpolation
+counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
+  as_tibble() |>
+  filter(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum)) |>
+  group_by(county_fips) |>
+  tally() |>
+  filter(n > 15) |>
+  pull(county_fips)
 
 #Linear interpolation on missing data
-wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> fill_gaps(.full = FALSE)|>  group_by_key(county_fips)|> na_interpolation() |> ungroup()|> as_tsibble(key=county_fips, index=year_week)
+wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed= na_interpolation(Influenza_A_gc_g_dry_weight_pop)) 
 #plot missingness comparisons by county
 # Prepare data for plotting: pivot longer to compare original vs imputed
 plot_data <- wwscan_flu_city_agg_with_county_info_clean_ts |>
@@ -117,14 +127,7 @@ for (i in seq_len(n_pages)) {
 }
 dev.off()
 
-#Remove counties with inadequate data/excessive interpolation
-counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
-  as_tibble() |>
-  filter(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum)) |>
-  group_by(county_fips) |>
-  tally() |>
-  filter(n >= 52) |>
-  pull(county_fips)
+
 
 wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
   filter(county_fips %in% counties_to_keep)
