@@ -125,5 +125,51 @@ dev.off()
 
 
 
+# Standardization ---------------------------------------------------------
 
+wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |> group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
+  scale(Influenza_A_gc_g_dry_weight_pop_wt_imputed)[, 1]) |> ungroup()
+
+
+# Plot standardized data --------------------------------------------------
+plot_data_scaled <- wwscan_flu_city_agg_with_county_info_ts_standard |>
+  as_tibble() |>
+  select(year_week, county_fips, 
+         scaled = Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled) |>
+  pivot_longer(cols = c(scaled), 
+               names_to = "type", 
+               values_to = "value")
+
+# Get unique counties for pagination
+counties <- unique(plot_data_scaled$county_fips)
+counties_per_page <- 6  # 3 rows x 2 columns
+n_pages <- ceiling(length(counties) / counties_per_page)
+
+# Create paginated plots
+pdf("Figures/influenza_scaled_by_county.pdf", width = 12, height = 14)
+
+for (page in 1:n_pages) {
+  # Subset counties for this page
+  start_idx <- (page - 1) * counties_per_page + 1
+  end_idx <- min(page * counties_per_page, length(counties))
+  counties_page <- counties[start_idx:end_idx]
+  
+  # Create plot for this page
+  p <- plot_data_scaled |>
+    filter(county_fips %in% counties_page) |>
+    ggplot(aes(x = year_week, y = value, color = type)) +
+    geom_line() +
+    facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
+    labs(title = paste("Influenza A in WW: Scaled by County (Page", page, "of", n_pages, ")"),
+         x = "Year-Week",
+         y = "Value",
+         color = "Type") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "bottom")
+  
+  print(p)
+}
+
+dev.off()
 
