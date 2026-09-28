@@ -67,6 +67,9 @@ wwscan_flu_city_agg_with_county_info_clean_yw_common_aggregate <- wwscan_flu_cit
 
 wwscan_flu_city_agg_with_county_info_clean_ts <- tsibble(wwscan_flu_city_agg_with_county_info_clean_yw_common_aggregate, key=county_fips, index=year_week)
 
+# Interpolattion ----------------------------------------------------------
+
+
 #check implicit gaps before interpolation
 wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot <- wwscan_flu_city_agg_with_county_info_clean_ts |> count_gaps() |>  arrange(county_fips)|> ggplot(aes(x=county_fips, colour=county_fips))+
   geom_linerange(aes(ymin = .from, ymax = .to)) +
