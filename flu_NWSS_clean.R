@@ -59,7 +59,7 @@ CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_gaps_pl
   coord_flip() +
   theme(legend.position = "bottom")
 ggplotly(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_gaps_plot)
-
+ggsave(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_gaps_plot, file="Figures/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_gaps_plot.pdf")
 
 # Drop counties with inadequate data --------------------------------------
 
@@ -73,7 +73,7 @@ counties_keep_NWSS<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw
 
 # Interpolation -----------------------------------------------------------
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> filter(county_fips %in% counties_keep_NWSS) |> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated=na_interpolation(pcr_target_flowpop_lin_sum))
-
+saveRDS(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated.RDS")
 #Plot missingness comparisons by county
 
 plot_data_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |>
@@ -116,7 +116,7 @@ dev.off()
 
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |> group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated_scaled = 
                              scale(pcr_target_flowpop_lin_sum_interpolated)[, 1]) |> ungroup()
-
+saveRDS(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard.RDS")
 # Plot standardized data --------------------------------------------------
 plot_data_scaled_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard |>
   as_tibble() |>
