@@ -67,7 +67,7 @@ wwscan_flu_city_agg_with_county_info_clean_yw_common_aggregate <- wwscan_flu_cit
 
 wwscan_flu_city_agg_with_county_info_clean_ts <- tsibble(wwscan_flu_city_agg_with_county_info_clean_yw_common_aggregate, key=county_fips, index=year_week)
 
-# Interpolattion ----------------------------------------------------------
+# Interpolation ----------------------------------------------------------
 
 
 #check implicit gaps before interpolation
@@ -78,6 +78,7 @@ wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot <- wwscan_flu_city_agg_w
   coord_flip() +
   theme(legend.position = "bottom")
 ggplotly(wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot)
+ggsave(wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot, file="Figures/wwscan_gaps_plot.pdf")
 #Remove counties with inadequate data/avoid excessive interpolation
 counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
   as_tibble() |>
@@ -86,12 +87,12 @@ counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
   tally() |>
   filter(n > 15) |>
   pull(county_fips)
-
 #Linear interpolation on missing data
 wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed = na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum)) 
+saveRDS(wwscan_flu_city_agg_with_county_info_clean_ts_imputed, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/wwscan_flu_city_agg_with_county_info_clean_ts_imputed.RDS")
 #plot missingness comparisons by county
 # Prepare data for plotting: pivot longer to compare original vs imputed
-plot_data <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
+plot_data_wwscan <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
   as_tibble() |>
   select(year_week, county_fips, 
          original = Influenza_A_gc_g_dry_weight_pop_wt_sum,
@@ -108,7 +109,7 @@ n_counties <- n_distinct(plot_data$county_fips)
 n_pages <- ceiling(n_counties / (n_cols * n_rows))
 
 # Build the paginated plot template
-p <- ggplot(plot_data, aes(x = year_week, y = value, color = type)) +
+p <- ggplot(plot_data_wwscan, aes(x = year_week, y = value, color = type)) +
   geom_line(linewidth = 0.8) +
   facet_wrap_paginate(~county_fips, scales = "free_y",
                       ncol = n_cols, nrow = n_rows, page = 1) +
@@ -135,7 +136,7 @@ wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_cou
 
 
 # Plot standardized data --------------------------------------------------
-plot_data_scaled <- wwscan_flu_city_agg_with_county_info_ts_standard |>
+plot_data_scaled_wwscan <- wwscan_flu_city_agg_with_county_info_ts_standard |>
   as_tibble() |>
   select(year_week, county_fips, 
          scaled = Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled) |>
@@ -144,12 +145,12 @@ plot_data_scaled <- wwscan_flu_city_agg_with_county_info_ts_standard |>
                values_to = "value")
 
 # Get unique counties for pagination
-counties <- unique(plot_data_scaled$county_fips)
+counties <- unique(plot_data_scaled_wwscan$county_fips)
 counties_per_page <- 6  # 3 rows x 2 columns
 n_pages <- ceiling(length(counties) / counties_per_page)
 
 # Create paginated plots
-pdf("Figures/influenza_scaled_by_county.pdf", width = 12, height = 14)
+pdf("Figures/wwscan_influenza_scaled_by_county.pdf", width = 12, height = 14)
 
 for (page in 1:n_pages) {
   # Subset counties for this page
@@ -158,7 +159,7 @@ for (page in 1:n_pages) {
   counties_page <- counties[start_idx:end_idx]
   
   # Create plot for this page
-  p <- plot_data_scaled |>
+  p <- plot_data_scaled_wwscan |>
     filter(county_fips %in% counties_page) |>
     ggplot(aes(x = year_week, y = value, color = type)) +
     geom_line() +
@@ -183,16 +184,16 @@ dev.off()
 wwscan_flu_city_agg_with_county_info_ts_standard_urb<- left_join(wwscan_flu_city_agg_with_county_info_ts_standard, NCHS_classifications_common_fips, by="county_fips")
 
 # Prepare data for plotting: standardized series grouped by NCHS code
-plot_data_nchs <- wwscan_flu_city_agg_with_county_info_ts_standard_urb |>
+plot_data_nchs_wwscan <- wwscan_flu_city_agg_with_county_info_ts_standard_urb |>
   as_tibble() |>
   select(year_week, county_fips, `2023 Code`,
          value = Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled)
 
 # Get unique NCHS codes and sort them
-nchs_codes <- unique(plot_data_nchs$`2023 Code`) |> sort()
+nchs_codes <- unique(plot_data_nchs_wwscan$`2023 Code`) |> sort()
 
 # Create paginated plots grouped by NCHS code
-pdf("influenza_standardized_by_nchs_code.pdf", width = 14, height = 11)
+pdf("wwscan_influenza_standardized_by_nchs_code.pdf", width = 14, height = 11)
 
 for (nchs_code in nchs_codes) {
   # Filter data for this NCHS code
