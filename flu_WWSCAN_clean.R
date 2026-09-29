@@ -120,7 +120,7 @@ p <- ggplot(plot_data_wwscan, aes(x = year_week, y = value, color = type)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Save all pages into a single multi-page PDF
-pdf("influenza_interpolations_by_county.pdf", width = 12, height = 10)
+pdf("wwscan_influenza_interpolations_by_county.pdf", width = 12, height = 10)
 for (i in seq_len(n_pages)) {
   print(p + facet_wrap_paginate(~county_fips, scales = "free_y",
                                 ncol = n_cols, nrow = n_rows, page = i))
@@ -134,7 +134,7 @@ dev.off()
 wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |> group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
   scale(Influenza_A_gc_g_dry_weight_pop_wt_imputed)[, 1]) |> ungroup()
 
-
+saveRDS(wwscan_flu_city_agg_with_county_info_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
 # Plot standardized data --------------------------------------------------
 plot_data_scaled_wwscan <- wwscan_flu_city_agg_with_county_info_ts_standard |>
   as_tibble() |>
