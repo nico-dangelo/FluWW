@@ -125,11 +125,11 @@ NCHS_classifications <- NCHS_classifications|> rename(county_fips=Location)
 wwscan_chc_joined_CCF_plot_urb <- left_join(wwscan_chc_joined_CCF_plot,NCHS_classifications, by="county_fips")
 nwss_chc_joined_CCF_plot_urb <- left_join(nwss_chc_joined_CCF_plot, NCHS_classifications, by="county_fips")
 
-counties_ordered <- wwscan_chc_joined_CCF_plot_urb %>%
+counties_ordered_wwscan <- wwscan_chc_joined_CCF_plot_urb %>%
   distinct(county_fips, `2023 Code`, FullGeoName) %>%
   arrange(`2023 Code`, FullGeoName) %>%
   pull(county_fips)
-max_ccf_per_county <- wwscan_chc_joined_CCF_plot_urb %>%
+max_ccf_per_county_wwscan <- wwscan_chc_joined_CCF_plot_urb %>%
   group_by(county_fips) %>%
   slice_max(abs(ccf), n = 1, with_ties = FALSE) %>%
   ungroup() %>%
@@ -143,19 +143,38 @@ max_ccf_per_county <- wwscan_chc_joined_CCF_plot_urb %>%
   ) %>%
   select(county_fips, lag_numeric, ccf, `2023 Code`, FullGeoName, lag_direction, label)
 n_per_page <- 6
-n_pages <- ceiling(length(counties_ordered) / n_per_page)
+n_pages_wwscan <- ceiling(length(counties_ordered_wwscan) / n_per_page)
+n_pages_nwss <- ceiling(length(counties_ordered_nwss) / n_per_page)
 
+counties_ordered_nwss <-nwss_chc_joined_CCF_plot_urb  %>%
+  distinct(county_fips, `2023 Code`, FullGeoName) %>%
+  arrange(`2023 Code`, FullGeoName) %>%
+  pull(county_fips)
+
+max_ccf_per_county_nwss<- nwss_chc_joined_CCF_plot_urb %>%
+  group_by(county_fips) %>%
+  slice_max(abs(ccf), n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(
+    lag_direction = case_when(
+      lag_numeric < 0 ~ paste0(abs(lag_numeric), "w lead"),
+      lag_numeric > 0 ~ paste0(lag_numeric, "w lag"),
+      lag_numeric == 0 ~ "0w (sync)"
+    ),
+    label = paste0(lag_direction, "\n", round(ccf, 3))
+  ) %>%
+  select(county_fips, lag_numeric, ccf, `2023 Code`, FullGeoName, lag_direction, label)
 pdf("ccf_by_county_nchs_paginated_annotated_wwscan.pdf", width = 14, height = 12)
 
-for (page in 1:n_pages) {
+for (page in 1:n_pages_wwscan) {
   start_idx <- (page - 1) * n_per_page + 1
-  end_idx <- min(page * n_per_page, length(counties_ordered))
-  counties_page <- counties_ordered[start_idx:end_idx]
+  end_idx <- min(page * n_per_page, length(counties_ordered_wwscan))
+  counties_page <- counties_ordered_wwscan[start_idx:end_idx]
   
   data_page <- wwscan_chc_joined_CCF_plot_urb %>%
     filter(county_fips %in% counties_page)
   
-  max_ccf_page <- max_ccf_per_county %>%
+  max_ccf_page <- max_ccf_per_county_wwscan %>%
     filter(county_fips %in% counties_page)
   
   p_page <- ggplot(data_page, aes(x = lag_numeric, y = ccf)) +
@@ -171,11 +190,13 @@ for (page in 1:n_pages) {
               aes(label = label),
               vjust = 1.2, hjust = -0.1, size = 2.2, fontface = "bold", color = "darkred",
               nudge_y = 0) +
-    facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
+    facet_wrap(~county_fips + `2023 Code`, scales = "free_y", ncol = 2,
+               labeller = labeller(county_fips = function(x) paste("County:", x),
+                                   `2023 Code` = function(x) paste("NCHS:", x))) +
     # Expand plot area to accommodate labels
     coord_cartesian(clip = "off") +
     labs(
-      title = paste("CCF by County and NCHS Code — Page", page, "of", n_pages),
+      title = paste("CCF by County and NCHS Code — Page", page, "of", n_pages_wwscan),
       x = "Lag (weeks)",
       y = "Cross-Correlation",
       caption = "Lead = wastewater precedes cases; Lag = wastewater follows cases"
@@ -192,3 +213,55 @@ for (page in 1:n_pages) {
 }
 
 dev.off()
+
+
+pdf("ccf_by_county_nchs_paginated_annotated_nwss.pdf", width = 14, height = 12)
+
+for (page in 1:n_pages_nwss) {
+  start_idx <- (page - 1) * n_per_page + 1
+  end_idx <- min(page * n_per_page, length(counties_ordered_nwss))
+  counties_page <- counties_ordered_nwss[start_idx:end_idx]
+  
+  data_page <- nwss_chc_joined_CCF_plot_urb %>%
+    filter(county_fips %in% counties_page)
+  
+  max_ccf_page <- max_ccf_per_county_nwss %>%
+    filter(county_fips %in% counties_page)
+  
+  p_page <- ggplot(data_page, aes(x = lag_numeric, y = ccf)) +
+    geom_segment(aes(xend = lag_numeric, yend = 0), 
+                 linewidth = 0.6, color = "steelblue", alpha = 0.7) +
+    geom_point(size = 2, color = "steelblue") +
+    geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 0.3) +
+    geom_hline(yintercept = c(-0.1, 0.1), linetype = "dashed", 
+               color = "red", linewidth = 0.4, alpha = 0.5) +
+    geom_point(data = max_ccf_page, size = 4, color = "darkred", shape = 21, stroke = 1.5) +
+    # Add text directly on the point instead of above
+    geom_text(data = max_ccf_page, 
+              aes(label = label),
+              vjust = 1.2, hjust = -0.1, size = 2.2, fontface = "bold", color = "darkred",
+              nudge_y = 0) +
+    facet_wrap(~county_fips + `2023 Code`, scales = "free_y", ncol = 2,
+               labeller = labeller(county_fips = function(x) paste("County:", x),
+                                   `2023 Code` = function(x) paste("NCHS:", x))) +
+    # Expand plot area to accommodate labels
+    coord_cartesian(clip = "off") +
+    labs(
+      title = paste("CCF by County and NCHS Code — Page", page, "of", n_pages_nwss),
+      x = "Lag (weeks)",
+      y = "Cross-Correlation",
+      caption = "Lead = wastewater precedes cases; Lag = wastewater follows cases"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 12),
+      strip.text = element_text(face = "bold", size = 10),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+      plot.margin = margin(t = 20, r = 10, b = 10, l = 10, unit = "pt")
+    )
+  
+  print(p_page)
+}
+
+dev.off()
+
