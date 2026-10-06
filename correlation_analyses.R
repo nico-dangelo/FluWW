@@ -274,11 +274,19 @@ dev.off()
 # Histograms --------------------------------------------------------------
 
 
-p_wwscan_lag_hist <- ggplot(max_ccf_per_county_wwscan, 
+# Combine datasets with a source identifier
+combined_data <- bind_rows(
+  max_ccf_per_county_wwscan %>% mutate(source = "WWSCAN"),
+  max_ccf_per_county_nwss %>% mutate(source = "NWSS")
+)
+
+# Create faceted histogram
+p_combined_hists <- ggplot(combined_data, 
                            aes(x = lag_numeric, fill = `2023 Code`)) +
   geom_histogram(binwidth = 2, color = "black", linewidth = 0.3, alpha = 0.8) +
+  facet_wrap(~source, ncol = 2) +
   labs(
-    title = "WWSCAN: Distribution of Maximum CCF Lags by County",
+    title = "Distribution of Maximum CCF Lags by County",
     x = "Lag (weeks)",
     y = "Frequency (Number of Counties)",
     subtitle = "Negative = wastewater leads; Positive = wastewater lags",
@@ -288,33 +296,13 @@ p_wwscan_lag_hist <- ggplot(max_ccf_per_county_wwscan,
   theme(
     plot.title = element_text(face = "bold", size = 13),
     plot.subtitle = element_text(size = 10),
-    legend.position = "right"
-  )
-print(p_wwscan_lag_hist)
-
-
-p_nwss_lag_hist <- ggplot(max_ccf_per_county_nwss, 
-                          aes(x = lag_numeric, fill = `2023 Code`)) +
-  geom_histogram(binwidth = 2, color = "black", linewidth = 0.3, alpha = 0.8) +
-  labs(
-    title = "NWSS: Distribution of Maximum CCF Lags by County",
-    x = "Lag (weeks)",
-    y = "Frequency (Number of Counties)",
-    subtitle = "Negative = wastewater leads; Positive = wastewater lags",
-    fill = "NCHS Code"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold", size = 13),
-    plot.subtitle = element_text(size = 10),
-    legend.position = "right"
+    legend.position = "right",
+    strip.text = element_text(face = "bold", size = 11)
   )
 
-# Combine and save
-p_combined_hists <- p_wwscan_lag_hist / p_nwss_lag_hist
-
-ggsave("ccf_max_lag_histograms.pdf", p_combined_hists, 
-       width = 12, height = 10, dpi = 300)
+# Save
+ggsave("Figures/ccf_max_lag_histograms.pdf", p_combined_hists, 
+       width = 12, height = 5, dpi = 300)
 
 print(p_combined_hists)
 
