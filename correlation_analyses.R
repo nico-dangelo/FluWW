@@ -13,7 +13,11 @@ pacman::p_load(tidyverse,
                surveillance,
                RColorBrewer,
                forecast,
-               fable)
+               fable,
+               knitr,
+               kableExtra,
+               webshot2,
+               htmlwidgets)
 
 # Import cleaned and standardized series ----------------------------------
 wwscan_flu_city_agg_with_county_info_ts_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
@@ -188,7 +192,7 @@ for (page in 1:n_pages_wwscan) {
     # Add text directly on the point instead of above
     geom_text(data = max_ccf_page, 
               aes(label = label),
-              vjust = 1.2, hjust = -0.1, size = 2.2, fontface = "bold", color = "darkred",
+              vjust = 1.2, hjust = 0.5, size = 2.2, fontface = "bold", color = "darkred",
               nudge_y = 0) +
     facet_wrap(~county_fips + `2023 Code`, scales = "free_y", ncol = 2,
                labeller = labeller(county_fips = function(x) paste("County:", x),
@@ -239,7 +243,7 @@ for (page in 1:n_pages_nwss) {
     # Add text directly on the point instead of above
     geom_text(data = max_ccf_page, 
               aes(label = label),
-              vjust = 1.2, hjust = -0.1, size = 2.2, fontface = "bold", color = "darkred",
+              vjust = 1.2, hjust = 0.5, size = 2.2, fontface = "bold", color = "darkred",
               nudge_y = 0) +
     facet_wrap(~county_fips + `2023 Code`, scales = "free_y", ncol = 2,
                labeller = labeller(county_fips = function(x) paste("County:", x),
@@ -265,3 +269,146 @@ for (page in 1:n_pages_nwss) {
 
 dev.off()
 
+
+
+# Histograms --------------------------------------------------------------
+
+
+p_wwscan_lag_hist <- ggplot(max_ccf_per_county_wwscan, 
+                           aes(x = lag_numeric, fill = `2023 Code`)) +
+  geom_histogram(binwidth = 2, color = "black", linewidth = 0.3, alpha = 0.8) +
+  labs(
+    title = "WWSCAN: Distribution of Maximum CCF Lags by County",
+    x = "Lag (weeks)",
+    y = "Frequency (Number of Counties)",
+    subtitle = "Negative = wastewater leads; Positive = wastewater lags",
+    fill = "NCHS Code"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(size = 10),
+    legend.position = "right"
+  )
+print(p_wwscan_lag_hist)
+
+
+p_nwss_lag_hist <- ggplot(max_ccf_per_county_nwss, 
+                          aes(x = lag_numeric, fill = `2023 Code`)) +
+  geom_histogram(binwidth = 2, color = "black", linewidth = 0.3, alpha = 0.8) +
+  labs(
+    title = "NWSS: Distribution of Maximum CCF Lags by County",
+    x = "Lag (weeks)",
+    y = "Frequency (Number of Counties)",
+    subtitle = "Negative = wastewater leads; Positive = wastewater lags",
+    fill = "NCHS Code"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(size = 10),
+    legend.position = "right"
+  )
+
+# Combine and save
+p_combined_hists <- p_wwscan_lag_hist / p_nwss_lag_hist
+
+ggsave("ccf_max_lag_histograms.pdf", p_combined_hists, 
+       width = 12, height = 10, dpi = 300)
+
+print(p_combined_hists)
+
+
+# Summary Tables ----------------------------------------------------------
+
+# WWSCAN summary table
+wwscan_lag_summary <- max_ccf_per_county_wwscan %>%
+  group_by(`2023 Code`) %>%
+  summarise(
+    N_Counties = n(),
+    Mean_Lag = round(mean(lag_numeric, na.rm = TRUE), 2),
+    Median_Lag = median(lag_numeric, na.rm = TRUE),
+    SD_Lag = round(sd(lag_numeric, na.rm = TRUE), 2),
+    Min_Lag = min(lag_numeric, na.rm = TRUE),
+    Max_Lag = max(lag_numeric, na.rm = TRUE),
+    Lead_Count = sum(lag_numeric < 0, na.rm = TRUE),
+    Sync_Count = sum(lag_numeric == 0, na.rm = TRUE),
+    Lag_Count = sum(lag_numeric > 0, na.rm = TRUE),
+    Mean_CCF = round(mean(ccf, na.rm = TRUE), 3),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Lead_Pct = round(100 * Lead_Count / N_Counties, 1),
+    Sync_Pct = round(100 * Sync_Count / N_Counties, 1),
+    Lag_Pct = round(100 * Lag_Count / N_Counties, 1)
+  ) %>%
+  select(`2023 Code`, N_Counties, Mean_Lag, Median_Lag, SD_Lag, Min_Lag, Max_Lag,
+         Lead_Count, Lead_Pct, Sync_Count, Sync_Pct, Lag_Count, Lag_Pct, Mean_CCF)
+
+# NWSS summary table
+nwss_lag_summary <- max_ccf_per_county_nwss %>%
+  group_by(`2023 Code`) %>%
+  summarise(
+    N_Counties = n(),
+    Mean_Lag = round(mean(lag_numeric, na.rm = TRUE), 2),
+    Median_Lag = median(lag_numeric, na.rm = TRUE),
+    SD_Lag = round(sd(lag_numeric, na.rm = TRUE), 2),
+    Min_Lag = min(lag_numeric, na.rm = TRUE),
+    Max_Lag = max(lag_numeric, na.rm = TRUE),
+    Lead_Count = sum(lag_numeric < 0, na.rm = TRUE),
+    Sync_Count = sum(lag_numeric == 0, na.rm = TRUE),
+    Lag_Count = sum(lag_numeric > 0, na.rm = TRUE),
+    Mean_CCF = round(mean(ccf, na.rm = TRUE), 3),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Lead_Pct = round(100 * Lead_Count / N_Counties, 1),
+    Sync_Pct = round(100 * Sync_Count / N_Counties, 1),
+    Lag_Pct = round(100 * Lag_Count / N_Counties, 1)
+  ) %>%
+  select(`2023 Code`, N_Counties, Mean_Lag, Median_Lag, SD_Lag, Min_Lag, Max_Lag,
+         Lead_Count, Lead_Pct, Sync_Count, Sync_Pct, Lag_Count, Lag_Pct, Mean_CCF)
+comparison_table <- bind_rows(
+  wwscan_lag_summary %>% mutate(Dataset = "WWSCAN"),
+  nwss_lag_summary %>% mutate(Dataset = "NWSS")
+) %>%
+  select(Dataset, `2023 Code`, everything())
+
+kable(wwscan_lag_summary, 
+      caption = "WWSCAN Maximum CCF Lag Summary by NCHS Code",
+      format = "html") %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover"))
+
+kable(nwss_lag_summary, 
+      caption = "NWSS Maximum CCF Lag Summary by NCHS Code",
+      format = "html") %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Save as formatted PDF
+# library(kableExtra)
+
+# pdf("Figures/ccf_lag_summary_tables.pdf", width = 14, height = 8)
+
+# Create the comparison table with both datasets
+comparison_table <- bind_rows(
+  wwscan_lag_summary %>% mutate(Dataset = "WWSCAN"),
+  nwss_lag_summary %>% mutate(Dataset = "NWSS")
+) %>%
+  select(Dataset, `2023 Code`, everything())
+
+# # Create styled HTML table
+# html_table <- kable(comparison_table, 
+#                     caption = "WWSCAN vs NWSS: Maximum CCF Lag Comparison by NCHS Code",
+#                     format = "html") %>%
+#   kable_styling(full_width = FALSE, 
+#                 bootstrap_options = c("striped", "hover"))
+# 
+# # Save as temporary HTML file
+# temp_html <- tempfile(fileext = ".html")
+# write(as.character(html_table), temp_html)
+# 
+# # Convert HTML to PDF using webshot2
+# webshot2::webshot(temp_html, 
+#                   output = "Figures/ccf_lag_summary_tables.pdf",
+#                   vwidth = 1400,   # width in pixels (14 inches × 100)
+#                   vheight = 800)   # height in pixels (8 inches × 100)
