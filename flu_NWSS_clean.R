@@ -13,7 +13,8 @@ pacman::p_load(tidyverse,
                RColorBrewer,
                forecast,
                fable,
-               ggforce)
+               ggforce,
+               mgcv)
 
 # Import NWSS Wastewater Data ---------------------------------------------
 
@@ -64,10 +65,12 @@ ggsave(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_
 # Drop counties with inadequate data --------------------------------------
 
 counties_keep_NWSS<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts|> as_tibble() |>
-  filter(!is.na(pcr_target_flowpop_lin_sum)) |>
   group_by(county_fips) |>
-  tally() |>
-  filter(n > 15) |>
+  summarise(n_total= n(),
+            n_non_missing =sum(!is.na(pcr_target_flowpop_lin_sum)),
+            prop_non_missing=n_non_missing/n_total,
+            .groups = "drop") |>
+  filter(n_non_missing>20, prop_non_missing > 0.75) |>
   pull(county_fips)
 
 
