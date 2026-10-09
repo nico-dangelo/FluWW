@@ -146,7 +146,6 @@ wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_cou
     Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
       (Influenza_A_gc_g_dry_weight_pop_wt_imputed - summer_mean) / county_sd
   ) |>
-  select(-month, -summer_mean, -county_sd) |>
   ungroup()
 saveRDS(wwscan_flu_city_agg_with_county_info_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
 # Plot standardized data --------------------------------------------------
@@ -175,13 +174,12 @@ for (page in 1:n_pages) {
   # Create plot for this page
   p <- plot_data_scaled_wwscan |>
     filter(county_fips %in% counties_page) |>
-    ggplot(aes(x = year_week, y = value, color = type)) +
-    geom_line() +
+    ggplot(aes(x = year_week, y = value)) +
+    geom_line(color = "mediumpurple4") +
     facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
     labs(title = paste("Influenza A in WW: Scaled by County (Page", page, "of", n_pages, ")"),
          x = "Year-Week",
-         y = "Value",
-         color = "Type") +
+         y = "Standardized value") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           legend.position = "bottom")
@@ -230,7 +228,7 @@ for (nchs_code in nchs_codes) {
     p <- data_nchs |>
       filter(county_fips %in% counties_page) |>
       ggplot(aes(x = year_week, y = value)) +
-      geom_line(color = "steelblue") +
+      geom_line(color = "mediumpurple4") +
       facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
       labs(title = paste(nchs_code, "- Standardized Influenza A (Page", page, "of", n_pages, ")"),
            x = "Year-Week",

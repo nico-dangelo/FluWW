@@ -24,7 +24,15 @@ county_flu_ac_season_norm_yw <- mutate(county_flu_ac_season_norm, year_week=year
 county_flu_ac_season_norm_ts <- tsibble(county_flu_ac_season_norm_yw, index = year_week, key=county_fips)
 saveRDS(county_flu_ac_season_norm_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
 # Standardization ---------------------------------------------------------
-county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts|> mutate(conf_flu_standard=scale(conf_flu)[,1])
+county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts |>
+  mutate(month = month(year_week)) |>
+  group_by(county_fips) |>
+  mutate(
+    summer_mean = mean(conf_flu[month %in% 6:9], na.rm = TRUE),
+    county_sd = sd(conf_flu, na.rm = TRUE),
+    conf_flu_standard = (conf_flu - summer_mean) / county_sd
+  ) |>
+  ungroup()
 saveRDS(county_flu_ac_season_norm_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/county_flu_ac_season_norm_ts_standard.RDS")
 #plot standardized series
 plot_data_scaled_chc <- county_flu_ac_season_norm_ts_standard |>
@@ -39,7 +47,7 @@ counties_per_page <- 6  # 3 rows x 2 columns
 n_pages <- ceiling(length(counties) / counties_per_page)
 
 # Create paginated plots
-pdf("Figures/chc_influenza_scaled_by_county.pdf", width = 12, height = 14)
+pdf("Figures/chc_influenza_standardized_by_county.pdf", width = 12, height = 14)
 
 for (page in 1:n_pages) {
   # Subset counties for this page
@@ -50,13 +58,12 @@ for (page in 1:n_pages) {
   # Create plot for this page
   p <- plot_data_scaled_chc |>
     filter(county_fips %in% counties_page) |>
-    ggplot(aes(x = year_week, y = value, color = type)) +
-    geom_line() +
+    ggplot(aes(x = year_week, y = value)) +
+    geom_line(color="hotpink3") +
     facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
     labs(title = paste("Influenza Claims: Scaled by County (Page", page, "of", n_pages, ")"),
          x = "Year-Week",
-         y = "Value",
-         color = "Type") +
+         y = "Value") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           legend.position = "bottom")
@@ -106,7 +113,7 @@ for (nchs_code in nchs_codes) {
     p <- data_nchs |>
       filter(county_fips %in% counties_page) |>
       ggplot(aes(x = year_week, y = value)) +
-      geom_line(color = "steelblue") +
+      geom_line(color = "hotpink3") +
       facet_wrap(~county_fips, scales = "free_y", ncol = 2) +
       labs(title = paste(nchs_code, "- Standardized Influenza A (Page", page, "of", n_pages, ")"),
            x = "Year-Week",

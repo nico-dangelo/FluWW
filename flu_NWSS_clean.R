@@ -119,7 +119,7 @@ dev.off()
 
 # CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |> group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated_scaled = 
 #                              scale(pcr_target_flowpop_lin_sum_interpolated)[, 1]) |> ungroup()
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |>
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |> 
   mutate(month = month(year_week)) |>
   group_by(county_fips) |>
   mutate(
