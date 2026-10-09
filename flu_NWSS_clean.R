@@ -74,8 +74,8 @@ counties_keep_NWSS<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw
   pull(county_fips)
 
 
-# Interpolation -----------------------------------------------------------
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> filter(county_fips %in% counties_keep_NWSS) |> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated=na_interpolation(pcr_target_flowpop_lin_sum))
+# Spline/GAM Interpolation -----------------------------------------------------------
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> filter(county_fips %in% counties_keep_NWSS) |> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated=na_interpolation(pcr_target_flowpop_lin_sum, option = "spline"))
 saveRDS(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated.RDS")
 #Plot missingness comparisons by county
 
@@ -107,7 +107,7 @@ p <- ggplot(plot_data_NWSS, aes(x = year_week, y = value, color = type)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Save all pages into a single multi-page PDF
-pdf("Figures/nwss_influenza_interpolations_by_county.pdf", width = 12, height = 10)
+pdf("Figures/nwss_influenza_spline_interpolations_by_county.pdf", width = 12, height = 10)
 for (i in seq_len(n_pages)) {
   print(p + facet_wrap_paginate(~county_fips, scales = "free_y",
                                 ncol = n_cols, nrow = n_rows, page = i))
@@ -117,8 +117,19 @@ dev.off()
 
 # Standardization ---------------------------------------------------------
 
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |> group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated_scaled = 
-                             scale(pcr_target_flowpop_lin_sum_interpolated)[, 1]) |> ungroup()
+# CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |> group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated_scaled = 
+#                              scale(pcr_target_flowpop_lin_sum_interpolated)[, 1]) |> ungroup()
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated |>
+  mutate(month = month(year_week)) |>
+  group_by(county_fips) |>
+  mutate(
+    summer_mean = mean(pcr_target_flowpop_lin_sum_interpolated[month %in% 6:9], na.rm = TRUE),
+    county_sd = sd(pcr_target_flowpop_lin_sum_interpolated, na.rm = TRUE),
+    pcr_target_flowpop_lin_sum_interpolated_scaled = 
+      (pcr_target_flowpop_lin_sum_interpolated - summer_mean) / county_sd
+  ) |>
+  select(-month, -summer_mean, -county_sd) |>
+  ungroup()
 saveRDS(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard.RDS")
 # Plot standardized data --------------------------------------------------
 plot_data_scaled_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard |>
@@ -135,7 +146,7 @@ counties_per_page <- 6  # 3 rows x 2 columns
 n_pages <- ceiling(length(counties) / counties_per_page)
 
 # Create paginated plots
-pdf("Figures/nwss_influenza_scaled_by_county.pdf", width = 12, height = 14)
+pdf("Figures/nwss_influenza_spline_standardized_by_county.pdf", width = 12, height = 14)
 
 for (page in 1:n_pages) {
   # Subset counties for this page
@@ -174,7 +185,7 @@ NCHS_classifications$`2023 Code` <-  as.factor(NCHS_classifications$`2023 Code`)
 NCHS_classifications_common_fips <- NCHS_classifications |> filter(Location %in% common_FIPS)|> rename(county_fips=Location)
 
 #Join NCHS level to standardized series
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard_urb <- left_join(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard,NCHS_classifications_common_fips, by="county_fips")
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard_urb <- inner_join(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard,NCHS_classifications_common_fips, by="county_fips")
 
 # Prepare data for plotting: standardized series grouped by NCHS code
 plot_data_nchs_nwss <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard_urb |>
@@ -186,7 +197,7 @@ plot_data_nchs_nwss <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_
 nchs_codes <- unique(plot_data_nchs_nwss$`2023 Code`) |> sort()
 
 # Create paginated plots grouped by NCHS code
-pdf("nwss_influenza_standardized_by_nchs_code.pdf", width = 14, height = 11)
+pdf("Figures/nwss_influenza_standardized_by_nchs_code.pdf", width = 14, height = 11)
 
 for (nchs_code in nchs_codes) {
   # Filter data for this NCHS code

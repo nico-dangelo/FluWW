@@ -91,9 +91,9 @@ counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
   ) |>
   filter(n_non_missing>20, prop_non_missing > 0.75) |>
   pull(county_fips)
-#Linear interpolation on missing data
-wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed = na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum)) 
-saveRDS(wwscan_flu_city_agg_with_county_info_clean_ts_imputed, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/wwscan_flu_city_agg_with_county_info_clean_ts_imputed.RDS")
+#Spline interpolation on missing data
+wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed = na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="spline")) 
+saveRDS(wwscan_flu_city_agg_with_county_info_clean_ts_imputed, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/wwscan_flu_city_agg_with_county_info_clean_ts_spline_imputed.RDS")
 #plot missingness comparisons by county
 # Prepare data for plotting: pivot longer to compare original vs imputed
 plot_data_wwscan <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
@@ -109,7 +109,7 @@ n_cols <- 2
 n_rows <- 4  # counties per page = n_cols * n_rows = 8
 
 
-n_counties <- n_distinct(plot_data$county_fips)
+n_counties <- n_distinct(plot_data_wwscan$county_fips)
 n_pages <- ceiling(n_counties / (n_cols * n_rows))
 
 # Build the paginated plot template
@@ -124,7 +124,7 @@ p <- ggplot(plot_data_wwscan, aes(x = year_week, y = value, color = type)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Save all pages into a single multi-page PDF
-pdf("wwscan_influenza_interpolations_by_county.pdf", width = 12, height = 10)
+pdf("Figures/wwscan_influenza_spline_interpolations_by_county.pdf", width = 12, height = 10)
 for (i in seq_len(n_pages)) {
   print(p + facet_wrap_paginate(~county_fips, scales = "free_y",
                                 ncol = n_cols, nrow = n_rows, page = i))
@@ -135,9 +135,19 @@ dev.off()
 
 # Standardization ---------------------------------------------------------
 
-wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |> group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
-  scale(Influenza_A_gc_g_dry_weight_pop_wt_imputed)[, 1]) |> ungroup()
-
+# wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |> group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
+#   scale(Influenza_A_gc_g_dry_weight_pop_wt_imputed)[, 1]) |> ungroup()
+wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |> 
+  mutate(month = month(year_week)) |>
+  group_by(county_fips) |>
+  mutate(
+    summer_mean = mean(Influenza_A_gc_g_dry_weight_pop_wt_imputed[month %in% 6:9], na.rm = TRUE),
+    county_sd = sd(Influenza_A_gc_g_dry_weight_pop_wt_imputed, na.rm = TRUE),
+    Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
+      (Influenza_A_gc_g_dry_weight_pop_wt_imputed - summer_mean) / county_sd
+  ) |>
+  select(-month, -summer_mean, -county_sd) |>
+  ungroup()
 saveRDS(wwscan_flu_city_agg_with_county_info_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
 # Plot standardized data --------------------------------------------------
 plot_data_scaled_wwscan <- wwscan_flu_city_agg_with_county_info_ts_standard |>
@@ -154,7 +164,7 @@ counties_per_page <- 6  # 3 rows x 2 columns
 n_pages <- ceiling(length(counties) / counties_per_page)
 
 # Create paginated plots
-pdf("Figures/wwscan_influenza_scaled_by_county.pdf", width = 12, height = 14)
+pdf("Figures/wwscan_influenza_spline_standardized_by_county.pdf", width = 12, height = 14)
 
 for (page in 1:n_pages) {
   # Subset counties for this page
@@ -197,11 +207,11 @@ plot_data_nchs_wwscan <- wwscan_flu_city_agg_with_county_info_ts_standard_urb |>
 nchs_codes <- unique(plot_data_nchs_wwscan$`2023 Code`) |> sort()
 
 # Create paginated plots grouped by NCHS code
-pdf("wwscan_influenza_standardized_by_nchs_code.pdf", width = 14, height = 11)
+pdf("Figures/wwscan_influenza_spline_standardized_by_nchs_code.pdf", width = 14, height = 11)
 
 for (nchs_code in nchs_codes) {
   # Filter data for this NCHS code
-  data_nchs <- plot_data_nchs |>
+  data_nchs <- plot_data_nchs_wwscan |>
     filter(`2023 Code` == nchs_code)
   
   # Get counties for this NCHS code
