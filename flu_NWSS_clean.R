@@ -64,14 +64,25 @@ ggsave(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_
 
 # Drop counties with inadequate data --------------------------------------
 
-counties_keep_NWSS<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts|> as_tibble() |>
+counties_keep_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> 
+  as_tibble() |>
+  mutate(month = month(year_week)) |>
   group_by(county_fips) |>
-  summarise(n_total= n(),
-            n_non_missing =sum(!is.na(pcr_target_flowpop_lin_sum)),
-            prop_non_missing=n_non_missing/n_total,
-            .groups = "drop") |>
-  filter(n_non_missing>20, prop_non_missing > 0.75) |>
+  summarise(
+    n_total = n(),
+    n_non_missing = sum(!is.na(pcr_target_flowpop_lin_sum)),
+    prop_non_missing = n_non_missing / n_total,
+    n_summer = sum(!is.na(pcr_target_flowpop_lin_sum) & month %in% 6:9),
+   # n_seasons=n_distinct(season),
+    .groups = "drop"
+  ) |>
+  filter(
+    n_non_missing > 20,
+    prop_non_missing > 0.75,
+    n_summer > 0  # Drop counties with no summer data
+  ) |>
   pull(county_fips)
+
 
 
 # Spline/GAM Interpolation -----------------------------------------------------------
@@ -233,3 +244,4 @@ for (nchs_code in nchs_codes) {
 }
 
 dev.off()
+
