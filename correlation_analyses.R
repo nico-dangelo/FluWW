@@ -17,20 +17,299 @@ pacman::p_load(tidyverse,
                knitr,
                kableExtra,
                webshot2,
-               htmlwidgets)
+               htmlwidgets,
+               ggforce,
+               TSA)
 
 # Import cleaned and standardized series ----------------------------------
 wwscan_flu_city_agg_with_county_info_ts_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
 county_flu_ac_season_norm_ts_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/county_flu_ac_season_norm_ts_standard.RDS")
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard.RDS") 
-# Compute Correlations ----------------------------------------------------
-#ACF
-# wwscan_flu_city_agg_with_county_info_ts_standard|> ACF(y=Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled)|> autoplot()
-#CCF
+
+
+
+
+
+
+# Merge series ------------------------------------------------------------
 wwscan_chc_joined <- wwscan_flu_city_agg_with_county_info_ts_standard |> select(year_week, county_fips, Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled) |> inner_join(county_flu_ac_season_norm_ts_standard, by = c("year_week", "county_fips"))
 nwss_chc_joined <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard|> select(year_week, county_fips, pcr_target_flowpop_lin_sum_interpolated_scaled)|> inner_join(county_flu_ac_season_norm_ts_standard, by = c("year_week", "county_fips"))
-wwscan_chc_joined_CCF<- wwscan_chc_joined |> group_by_key()|> CCF(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled, conf_flu_standard, lag_max = 52, type="correlation")
-nwss_chc_joined_CCF <- nwss_chc_joined|> group_by_key() |> CCF(pcr_target_flowpop_lin_sum_interpolated_scaled, conf_flu_standard, lag_max = 52, type = "correlation")
+#  Plot series pairs -----------------------------------------------------------------------
+# Paginated plot for WWSCAN vs CHC
+pdf("Figures/wwscan_chc_paginated.pdf", width = 12, height = 10)
+
+counties <- unique(wwscan_chc_joined$county_fips)
+n_counties <- length(counties)
+counties_per_page <- 9
+
+n_pages <- ceiling(n_counties / counties_per_page)
+
+for (page in 1:n_pages) {
+  start_idx <- (page - 1) * counties_per_page + 1
+  end_idx <- min(page * counties_per_page, n_counties)
+  counties_page <- counties[start_idx:end_idx]
+  
+  plot <- wwscan_chc_joined |>
+    filter(county_fips %in% counties_page) |>
+    pivot_longer(
+      cols = c(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled, conf_flu_standard),
+      names_to = "series",
+      values_to = "value"
+    ) |>
+    mutate(series = factor(series,
+                           levels = c("Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled", "conf_flu_standard"),
+                           labels = c("WWSCAN", "CHC"))) |>
+    ggplot(aes(x = year_week, y = value, color = series)) +
+    geom_line(alpha = 0.7) +
+    scale_color_manual(
+      values = c("WWSCAN" = "mediumpurple4",
+                 "CHC" = "hotpink3")
+    ) +
+    facet_wrap(~county_fips, ncol = 3, nrow = 3) +
+    labs(
+      title = paste("WWSCAN vs CHC - Page", page, "of", n_pages),
+      x = "Year-Week",
+      y = "Standardized Value",
+      color = "Data Series"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(plot)
+}
+
+dev.off()
+
+# cat("PDF saved as 'wwscan_chc_paginated.pdf'\n")
+
+# Paginated plot for NWSS vs CHC
+pdf("Figures/nwss_chc_paginated.pdf", width = 12, height = 10)
+
+counties <- unique(nwss_chc_joined$county_fips)
+n_counties <- length(counties)
+counties_per_page <- 9
+
+n_pages <- ceiling(n_counties / counties_per_page)
+
+for (page in 1:n_pages) {
+  start_idx <- (page - 1) * counties_per_page + 1
+  end_idx <- min(page * counties_per_page, n_counties)
+  counties_page <- counties[start_idx:end_idx]
+  
+  plot <- nwss_chc_joined |>
+    filter(county_fips %in% counties_page) |>
+    pivot_longer(
+      cols = c(pcr_target_flowpop_lin_sum_interpolated_scaled, conf_flu_standard),
+      names_to = "series",
+      values_to = "value"
+    ) |>
+    mutate(series = factor(series,
+                           levels = c("pcr_target_flowpop_lin_sum_interpolated_scaled", "conf_flu_standard"),
+                           labels = c("NWSS", "CHC"))) |>
+    ggplot(aes(x = year_week, y = value, color = series)) +
+    geom_line(alpha = 0.7) +
+    scale_color_manual(
+      values = c("NWSS" = "steelblue",
+                 "CHC" = "hotpink3")
+    ) +
+    facet_wrap(~county_fips, ncol = 3, nrow = 3) +
+    labs(
+      title = paste("NWSS vs CHC - Page", page, "of", n_pages),
+      x = "Year-Week",
+      y = "Standardized Value",
+      color = "Data Series"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(plot)
+}
+
+dev.off()
+
+# cat("PDF saved as 'nwss_chc_paginated.pdf'\n")
+
+
+
+# Plot overlaps in series together ----------------------------------------
+chc_wwscan_nwss_joined <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard |>
+  select(county_fips, year_week, pcr_target_flowpop_lin_sum_interpolated_scaled) |>
+  inner_join(
+    county_flu_ac_season_norm_ts_standard |>
+      select(county_fips, year_week, conf_flu_standard),
+    by = c("county_fips", "year_week")
+  ) |>
+  inner_join(
+    wwscan_flu_city_agg_with_county_info_ts_standard |>
+      as_tibble() |>
+      select(county_fips, year_week, Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled),
+    by = c("county_fips", "year_week")
+  ) 
+# chc_wwscan_nwss_joined |> pivot_longer(
+#   cols = c(conf_flu_standard, pcr_target_flowpop_lin_sum_interpolated_scaled, Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled),
+#   names_to = "series",
+#   values_to = "value"
+# ) |>
+#   ggplot(aes(x = year_week, y = value, color = series)) +
+#   geom_line(alpha = 0.7) +
+#   facet_wrap_paginate(~county_fips, ncol = 3, nrow = 3, page=2) +
+#   labs(
+#     title = "Standardized Wastewater and Flu Series by County",
+#     x = "Date",
+#     y = "Standardized Value",
+#     color = "Data Series"
+#   , ) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+pdf("Figures/standardized_series_common_fips_paginated.pdf", width = 12, height = 10)
+
+counties <- unique(chc_wwscan_nwss_joined$county_fips)
+n_counties <- length(counties)
+counties_per_page <- 4  # 2x2 grid
+
+n_pages <- ceiling(n_counties / counties_per_page)
+
+for (page in 1:n_pages) {
+  start_idx <- (page - 1) * counties_per_page + 1
+  end_idx <- min(page * counties_per_page, n_counties)
+  counties_page <- counties[start_idx:end_idx]
+  
+  plot <- chc_wwscan_nwss_joined |>
+    filter(county_fips %in% counties_page) |>
+    pivot_longer(
+      cols = c(pcr_target_flowpop_lin_sum_interpolated_scaled, conf_flu_standard, Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled),
+      names_to = "series",
+      values_to = "value"
+    ) |>
+    mutate(series = factor(series, 
+                           levels = c("pcr_target_flowpop_lin_sum_interpolated_scaled", "conf_flu_standard", "Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled"),
+                           labels = c("NWSS", "CHC", "WWSCAN"))) |>
+    ggplot(aes(x = year_week, y = value, color = series)) +
+    geom_line(alpha = 0.7) +
+    scale_color_manual(
+      values = c("WWSCAN" = "mediumpurple4", 
+                 "NWSS" = "steelblue", 
+                 "CHC" = "hotpink3")
+    ) +
+    facet_wrap(~county_fips, ncol = 2, nrow = 2) +
+    labs(
+      title = paste("Standardized Series - Page", page, "of", n_pages),
+      x = "Date",
+      y = "Standardized Value",
+      color = "Data Series"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(plot)
+}
+
+dev.off()
+
+
+# Compute Correlations ----------------------------------------------------
+# Pre-whiten series --------------------------------------------------------
+wwscan_chc_joined_pw <- wwscan_chc_joined |> filter(season=="2023-2024")|> 
+  group_by_key() |>
+  nest() |>
+  mutate(
+    pw_result = map(data, ~prewhiten(
+      x = .x$Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled,
+      y = .x$conf_flu_standard,
+      ylab = "CCF",
+      order.max=3,
+    plot=F))
+    )
+nwss_chc_joined_pw <- nwss_chc_joined |> filter(season=="2023-2024")|>
+  group_by_key() |>
+  nest() |>
+  mutate(
+    pw_result= map(data, ~prewhiten(
+      x=.x$pcr_target_flowpop_lin_sum_interpolated_scaled,
+      y=.x$conf_flu_standard,
+     order.max=3,
+      ylab="CCF"
+    , plot=F))
+  )
+  
+
+# Plot pre-whitened CCFs --------------------------------------------------
+nwss_chc_joined_pw_ccf <- nwss_chc_joined_pw |>
+  mutate(
+    ccf_tidy = map2(county_fips, pw_result, ~{
+      tibble(
+        lag = as.numeric(.y$ccf$lag),
+        acf = as.numeric(.y$ccf$acf)
+      )
+    })
+  ) |>
+  select(county_fips, ccf_tidy) |>
+  unnest(ccf_tidy)
+wwscan_chc_joined_pw_ccf <- wwscan_chc_joined_pw|>
+  mutate(
+    ccf_tidy = map2(county_fips, pw_result, ~{
+      tibble(
+        lag = as.numeric(.y$ccf$lag),
+        acf = as.numeric(.y$ccf$acf)
+      )
+    })
+  ) |>
+  select(county_fips, ccf_tidy) |>
+  unnest(ccf_tidy)  
+
+pdf("Figures/ccf_nwss_pw.pdf", width = 10, height = 9)
+
+ccf_plot_nwss_pw <- nwss_chc_joined_pw_ccf |>
+  ggplot(aes(x = lag, y = acf)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_segment(aes(xend = lag, yend = 0), color = "steelblue") +
+  geom_point(color = "steelblue", size = 1.5) +
+  facet_wrap(~county_fips, scales = "free_y", ncol = 3, nrow = 3) +
+  labs(
+    title = "Pre-Whitened CCF by County (NWSS)",
+    x = "Lag",
+    y = "CCF"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 8), axis.text = element_text(size = 7))
+
+n_pages_nwss <- ceiling(n_distinct(nwss_chc_joined_pw_ccf$county_fips) / 9)
+
+for (i in 1:n_pages_nwss) {
+  print(ccf_plot_nwss_pw %+% 
+          facet_wrap_paginate(~county_fips, scales = "free_y", ncol = 3, nrow = 3, page = i))
+}
+
+dev.off()
+
+pdf("ccf_wwscan_pw.pdf", width = 10, height = 9)
+
+ccf_plot_wwscan_pw <- wwscan_chc_joined_pw_ccf |>
+  ggplot(aes(x = lag, y = acf)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_segment(aes(xend = lag, yend = 0), color = "mediumpurple4") +
+  geom_point(color = "mediumpurple4", size = 1.5) +
+  facet_wrap(~county_fips, scales = "free_y", ncol = 3, nrow = 3) +
+  labs(
+    title = "Pre-Whitened CCF by County (Dataset 2)",
+    x = "Lag",
+    y = "CCF"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 8), axis.text = element_text(size = 7))
+
+n_pages_wwscan_pw <- ceiling(n_distinct(wwscan_chc_joined_pw_ccf$county_fips) / 9)
+
+for (i in 1:n_pages_wwscan_pw) {
+  print(ccf_plot_wwscan_pw %+% 
+          facet_wrap_paginate(~county_fips, scales = "free_y", ncol = 3, nrow = 3, page = i))
+}
+
+dev.off()
+
+# Naïve CCF
+wwscan_chc_joined_CCF<- wwscan_chc_joined |> filter(season=="2023-2024")|> group_by_key()|> CCF(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled, conf_flu_standard, lag_max = 5, type="correlation")
+nwss_chc_joined_CCF <- nwss_chc_joined|> filter(season=="2023-2024")|> group_by_key() |> CCF(pcr_target_flowpop_lin_sum_interpolated_scaled, conf_flu_standard, lag_max = 5, type = "correlation")
 
 
 # Plot cross-correlation estimates by county ---------------------------------------
@@ -43,7 +322,7 @@ counties_wwscan_chc <- unique(wwscan_chc_joined_CCF_plot$county_fips)
 n_per_page <- 6
 n_pages <- ceiling(length(counties_wwscan_chc) / n_per_page)
 
-pdf("ccf_by_county_paginated_wwscan.pdf", width = 14, height = 11)
+pdf("Figures/ccf_by_county_paginated_wwscan_23-24.pdf", width = 14, height = 11)
 
 for (page in 1:n_pages) {
   start_idx <- (page - 1) * n_per_page + 1
@@ -84,7 +363,7 @@ nwss_chc_joined_CCF_plot <- nwss_chc_joined_CCF|> as_tibble() |> mutate(
 )
 counties_nwss_chc <- unique(nwss_chc_joined_CCF_plot$county_fips)
 n_pages <- ceiling(length(counties_nwss_chc) / n_per_page)
-pdf("ccf_by_county_paginated_nwss.pdf", width = 14, height = 11)
+pdf("Figures/ccf_by_county_paginated_nwss.pdf", width = 14, height = 11)
 
 for (page in 1:n_pages) {
   start_idx <- (page - 1) * n_per_page + 1
@@ -168,7 +447,7 @@ max_ccf_per_county_nwss<- nwss_chc_joined_CCF_plot_urb %>%
     label = paste0(lag_direction, "\n", round(ccf, 3))
   ) %>%
   select(county_fips, lag_numeric, ccf, `2023 Code`, FullGeoName, lag_direction, label)
-pdf("ccf_by_county_nchs_paginated_annotated_wwscan.pdf", width = 14, height = 12)
+pdf("Figures/ccf_by_county_nchs_paginated_annotated_wwscan.pdf", width = 14, height = 12)
 
 for (page in 1:n_pages_wwscan) {
   start_idx <- (page - 1) * n_per_page + 1
@@ -219,7 +498,7 @@ for (page in 1:n_pages_wwscan) {
 dev.off()
 
 
-pdf("ccf_by_county_nchs_paginated_annotated_nwss.pdf", width = 14, height = 12)
+pdf("Figures/ccf_by_county_nchs_paginated_annotated_nwss.pdf", width = 14, height = 12)
 
 for (page in 1:n_pages_nwss) {
   start_idx <- (page - 1) * n_per_page + 1
