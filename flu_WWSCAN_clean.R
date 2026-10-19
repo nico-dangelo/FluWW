@@ -80,19 +80,20 @@ wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot <- wwscan_flu_city_agg_w
 ggplotly(wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot)
 ggsave(wwscan_flu_city_agg_with_county_info_clean_ts_gaps_plot, file="Figures/wwscan_gaps_plot.pdf")
 #Remove counties with inadequate data/avoid excessive interpolation
-counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |>
+counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |> fill_gaps()|>
   as_tibble() |>
   mutate(month=month(year_week)) |>
   group_by(county_fips)|>
   summarise(
     n_total = n(),
     n_non_missing = sum(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum)),
+    n_missing=n_total-n_non_missing,
     prop_non_missing = n_non_missing / n_total,
   n_summer = sum(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum) & month %in% 6:9),
  #n_seasons = n_distinct(season),
       .groups = "drop"
   ) |>
-  filter(n_non_missing>20, prop_non_missing > 0.75, n_summer>0) |>
+  filter(n_missing<=10, prop_non_missing>0.5, n_summer>0) |>
   pull(county_fips)
 #Spline interpolation on missing data
 wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed = pmax(0,na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="spline"))) 
