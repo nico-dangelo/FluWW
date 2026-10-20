@@ -22,7 +22,14 @@ county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-
 county_flu_ac_season_norm_yw <- mutate(county_flu_ac_season_norm, year_week=yearweek(year_week))
 #make tsibble
 county_flu_ac_season_norm_ts <- tsibble(county_flu_ac_season_norm_yw, index = year_week, key=county_fips)
-saveRDS(county_flu_ac_season_norm_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
+counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
+  as_tibble() |>
+  group_by(county_fips)|>
+  filter(season=="2023-2024",season_all_cause >=10000, max(conf_flu>10)==T)|> 
+  summarise(n=n(),
+            )|>
+  pull(county_fips)
+saveRDS(county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC), file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
 # Standardization ---------------------------------------------------------
 county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts |>
   mutate(month = month(year_week)) |>
