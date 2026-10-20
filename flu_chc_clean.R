@@ -29,7 +29,8 @@ counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
   summarise(n=n(),
             )|>
   pull(county_fips)
-saveRDS(county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC), file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
+county_flu_ac_season_norm_ts <- county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC)
+saveRDS(county_flu_ac_season_norm_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
 # Standardization ---------------------------------------------------------
 county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts |>
   mutate(month = month(year_week)) |>

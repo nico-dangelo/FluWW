@@ -45,8 +45,11 @@ CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw <- CDC_Wastewater_Da
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw|> group_by(county_fips)|>  summarise(n_na=sum(is.na(pcr_target_flowpop_lin))) |> print(n=Inf)
 
 
+# Drop sites serving fewer than 10,000 ------------------------------------
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_10k<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw |> group_by(site) |> filter(population_served>10000)
+
 # Aggregate to weekly scale -----------------------------------------------
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw |> group_by(county_fips, year_week) |> summarise(pcr_target_flowpop_lin_sum=sum(pcr_target_flowpop_lin,na.rm=F), .groups = "drop")
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_10k |> group_by(county_fips, year_week) |> summarise(pcr_target_flowpop_lin_sum=sum(pcr_target_flowpop_lin,na.rm=F), .groups = "drop")
 
 # Make tsibble object -----------------------------------------------------
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts <- tsibble(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate, key=county_fips, index = year_week)
@@ -66,22 +69,29 @@ ggsave(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_
 
 counties_keep_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> fill_gaps()|>
   as_tibble() |>
-  mutate(month = month(year_week)) |>
+  mutate(
+    date = as.Date(year_week),
+    month = lubridate::month(date), 
+    season = ifelse(
+      lubridate::month(date) >= 7,
+      paste0(lubridate::year(date), "-", lubridate::year(date) + 1),
+      paste0(lubridate::year(date) - 1, "-", lubridate::year(date))
+    )
+  ) |>
   group_by(county_fips) |>
   summarise(
     n_total = n(),
     n_non_missing = sum(!is.na(pcr_target_flowpop_lin_sum)),
-    n_missing=n_total-n_non_missing,
     prop_non_missing = n_non_missing / n_total,
     n_summer = sum(!is.na(pcr_target_flowpop_lin_sum) & month %in% 6:9),
-   # n_seasons=n_distinct(season),
+    n_seasons = n_distinct(season),
     .groups = "drop"
   ) |>
   filter(
     n_non_missing > 20,
-    n_missing<=10,
-    prop_non_missing > 0.5,
-    n_summer > 0  # Drop counties with no summer data
+    prop_non_missing > 0.75,
+    n_summer > 0,
+    n_seasons > 1
   ) |>
   pull(county_fips)
 

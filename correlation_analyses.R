@@ -412,6 +412,10 @@ counties_ordered_wwscan <- wwscan_chc_joined_CCF_plot_urb %>%
   distinct(county_fips, `2023 Code`, FullGeoName) %>%
   arrange(`2023 Code`, FullGeoName) %>%
   pull(county_fips)
+counties_ordered_nwss <-nwss_chc_joined_CCF_plot_urb  %>%
+  distinct(county_fips, `2023 Code`, FullGeoName) %>%
+  arrange(`2023 Code`, FullGeoName) %>%
+  pull(county_fips)
 max_ccf_per_county_wwscan <- wwscan_chc_joined_CCF_plot_urb %>%
   group_by(county_fips) %>%
   slice_max(abs(ccf), n = 1, with_ties = FALSE) %>%
@@ -429,10 +433,7 @@ n_per_page <- 6
 n_pages_wwscan <- ceiling(length(counties_ordered_wwscan) / n_per_page)
 n_pages_nwss <- ceiling(length(counties_ordered_nwss) / n_per_page)
 
-counties_ordered_nwss <-nwss_chc_joined_CCF_plot_urb  %>%
-  distinct(county_fips, `2023 Code`, FullGeoName) %>%
-  arrange(`2023 Code`, FullGeoName) %>%
-  pull(county_fips)
+
 
 max_ccf_per_county_nwss<- nwss_chc_joined_CCF_plot_urb %>%
   group_by(county_fips) %>%
@@ -664,12 +665,12 @@ comparison_table <- bind_rows(
   select(Dataset, `2023 Code`, everything())
 
 # # Create styled HTML table
-# html_table <- kable(comparison_table, 
-#                     caption = "WWSCAN vs NWSS: Maximum CCF Lag Comparison by NCHS Code",
-#                     format = "html") %>%
-#   kable_styling(full_width = FALSE, 
-#                 bootstrap_options = c("striped", "hover"))
-# 
+html_table <- kable(comparison_table,
+                    caption = "WWSCAN vs NWSS: Maximum CCF Lag Comparison by NCHS Code",
+                    format = "html") %>%
+  kable_styling(full_width = FALSE,
+                bootstrap_options = c("striped", "hover"))
+
 # # Save as temporary HTML file
 # temp_html <- tempfile(fileext = ".html")
 # write(as.character(html_table), temp_html)
