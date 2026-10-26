@@ -25,7 +25,7 @@ county_flu_ac_season_norm_ts <- tsibble(county_flu_ac_season_norm_yw, index = ye
 counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
   as_tibble() |>
   group_by(county_fips)|>
-  filter(season=="2023-2024",season_all_cause >=10000, max(conf_flu>10)==T)|> 
+  filter(season=="2023-2024",season_all_cause >=5000, max(conf_flu>10)==T)|> 
   summarise(n=n(),
             )|>
   pull(county_fips)
@@ -36,7 +36,7 @@ county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts |>
   mutate(month = month(year_week)) |>
   group_by(county_fips) |>
   mutate(
-    summer_mean = mean(conf_flu[month %in% 6:9], na.rm = TRUE),
+    summer_mean = mean(conf_flu[month==6], na.rm = TRUE),
     county_sd = sd(conf_flu, na.rm = TRUE),
     conf_flu_standard = (conf_flu - summer_mean) / county_sd
   ) |>
