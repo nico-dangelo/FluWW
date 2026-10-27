@@ -89,7 +89,7 @@ counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |> fill_gaps()
     n_non_missing = sum(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum)),
     n_missing=n_total-n_non_missing,
     prop_non_missing = n_non_missing / n_total,
-  n_summer = sum(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum) & month==6),
+  n_summer = sum(!is.na(Influenza_A_gc_g_dry_weight_pop_wt_sum) & month %in% 6:9),
  #n_seasons = n_distinct(season),
       .groups = "drop"
   ) |>
