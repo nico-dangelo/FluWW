@@ -95,7 +95,7 @@ counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |> fill_gaps()
   ) |>
   filter(n_missing<=10, prop_non_missing>0.5, n_summer>0) |>
   pull(county_fips)
-n_dropped_WWSCAN <- n_distinct(wwscan_flu_city_agg_with_county_info_clean$county_fips)-n_distinct(counties_to_keep)
+n_dropped_WWSCAN <- n_distinct(wwscan_flu_city_agg_with_county_info_clean_ts$county_fips)-n_distinct(counties_to_keep)
 #Linear and Spline interpolation on missing data
 wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_linear_interpolated=pmax(0,na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="linear")),Influenza_A_gc_g_dry_weight_pop_wt_spline_interpolated = pmax(0,na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="spline"))) 
 saveRDS(wwscan_flu_city_agg_with_county_info_clean_ts_imputed, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/wwscan_flu_city_agg_with_county_info_clean_ts_imputed.RDS")

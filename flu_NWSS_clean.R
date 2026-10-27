@@ -29,7 +29,7 @@ CDC_Wastewater_Data_for_Influenza_A_20260910_clean |> summarise(across(county_fi
                                                                          sum(str_detect(unique(
                                                                            .
                                                                          ), ","))))
-#separate multiple fips rows
+#separate multiple fips rows 
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean |> separate_rows(county_fips, sep =
                                                                                                                                   ",") |> mutate(county_fips = str_trim(county_fips))
 # common counties
@@ -47,7 +47,7 @@ CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw|> group_by(county_fi
 
 # Drop sites serving fewer than 10,000 ------------------------------------
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_10k<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw |> group_by(site) |> filter(population_served>10000)
-
+n_drop_nwss_site_10k <- n_distinct(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_10k) - n_distinct(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw$county_fips)
 # Aggregate to weekly scale -----------------------------------------------
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate<- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_10k |> group_by(county_fips, year_week) |> summarise(pcr_target_flowpop_lin_sum=sum(pcr_target_flowpop_lin,na.rm=F), .groups = "drop")
 
