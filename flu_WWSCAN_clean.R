@@ -95,17 +95,19 @@ counties_to_keep <- wwscan_flu_city_agg_with_county_info_clean_ts |> fill_gaps()
   ) |>
   filter(n_missing<=10, prop_non_missing>0.5, n_summer>0) |>
   pull(county_fips)
-#Spline interpolation on missing data
-wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_imputed = pmax(0,na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="spline"))) 
-saveRDS(wwscan_flu_city_agg_with_county_info_clean_ts_imputed, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/wwscan_flu_city_agg_with_county_info_clean_ts_spline_imputed.RDS")
+n_dropped_WWSCAN <- n_distinct(wwscan_flu_city_agg_with_county_info_clean$county_fips)-n_distinct(counties_to_keep)
+#Linear and Spline interpolation on missing data
+wwscan_flu_city_agg_with_county_info_clean_ts_imputed <- wwscan_flu_city_agg_with_county_info_clean_ts |> filter(county_fips %in% counties_to_keep)|> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(Influenza_A_gc_g_dry_weight_pop_wt_linear_interpolated=pmax(0,na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="linear")),Influenza_A_gc_g_dry_weight_pop_wt_spline_interpolated = pmax(0,na_interpolation(Influenza_A_gc_g_dry_weight_pop_wt_sum, option="spline"))) 
+saveRDS(wwscan_flu_city_agg_with_county_info_clean_ts_imputed, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/wwscan_flu_city_agg_with_county_info_clean_ts_imputed.RDS")
 #plot missingness comparisons by county
 # Prepare data for plotting: pivot longer to compare original vs imputed
 plot_data_wwscan <- wwscan_flu_city_agg_with_county_info_clean_ts_imputed |>
   as_tibble() |>
   select(year_week, county_fips, 
          original = Influenza_A_gc_g_dry_weight_pop_wt_sum,
-         imputed = Influenza_A_gc_g_dry_weight_pop_wt_imputed) |>
-  pivot_longer(cols = c(original, imputed), names_to = "type", values_to = "value")
+         linear_imputed = Influenza_A_gc_g_dry_weight_pop_wt_linear_interpolated,
+         spline_imputed = Influenza_A_gc_g_dry_weight_pop_wt_spline_interpolated) |>
+  pivot_longer(cols = c(original, linear_imputed, spline_imputed), names_to = "type", values_to = "value")
 
 
 # Settings: 2 columns, N rows per page 
@@ -145,10 +147,10 @@ wwscan_flu_city_agg_with_county_info_ts_standard <- wwscan_flu_city_agg_with_cou
   mutate(month = month(year_week)) |>
   group_by(county_fips) |>
   mutate(
-    summer_mean = mean(Influenza_A_gc_g_dry_weight_pop_wt_imputed[month==6], na.rm = TRUE),
-    county_sd = sd(Influenza_A_gc_g_dry_weight_pop_wt_imputed, na.rm = TRUE),
+    summer_mean = mean(Influenza_A_gc_g_dry_weight_pop_wt_linear_interpolated[month==6], na.rm = TRUE),
+    county_sd = sd(Influenza_A_gc_g_dry_weight_pop_wt_linear_interpolated, na.rm = TRUE),
     Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled = 
-      (Influenza_A_gc_g_dry_weight_pop_wt_imputed - summer_mean) / county_sd
+      (Influenza_A_gc_g_dry_weight_pop_wt_linear_interpolated - summer_mean) / county_sd
   ) |>
   ungroup()
 saveRDS(wwscan_flu_city_agg_with_county_info_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")

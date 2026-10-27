@@ -94,11 +94,11 @@ counties_keep_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_y
     n_seasons > 1
   ) |>
   pull(county_fips)
+n_dropped_nwss <- n_distinct(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts$county_fips)-n_distinct(counties_keep_NWSS)
 
 
-
-# Spline/GAM Interpolation -----------------------------------------------------------
-CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> filter(county_fips %in% counties_keep_NWSS) |> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(pcr_target_flowpop_lin_sum_interpolated=pmax(0,na_interpolation(pcr_target_flowpop_lin_sum, option = "spline")))
+# Linear and Spline/GAM Interpolation -----------------------------------------------------------
+CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts |> filter(county_fips %in% counties_keep_NWSS) |> fill_gaps(.full = FALSE)|>  group_by_key()|> mutate(pcr_target_flowpop_lin_sum_linear_interpolated=pmax(0,na_interpolation(pcr_target_flowpop_lin_sum, option = "linear")),pcr_target_flowpop_lin_sum_spline_interpolated=pmax(0,na_interpolation(pcr_target_flowpop_lin_sum, option = "spline")))
 saveRDS(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated.RDS")
 #Plot missingness comparisons by county
 
@@ -106,8 +106,9 @@ plot_data_NWSS <- CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_ag
   as_tibble() |>
   select(year_week, county_fips, 
          original = pcr_target_flowpop_lin_sum,
-         imputed = pcr_target_flowpop_lin_sum_interpolated) |>
-  pivot_longer(cols = c(original, imputed), names_to = "type", values_to = "value")
+         spline_imputed = pcr_target_flowpop_lin_sum_spline_interpolated,
+         linear_imputed=pcr_target_flowpop_lin_sum_linear_interpolated) |>
+  pivot_longer(cols = c(original, spline_imputed, linear_imputed), names_to = "type", values_to = "value")
 
 
 # Settings: 2 columns, N rows per page 
@@ -146,10 +147,10 @@ CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpo
   mutate(month = month(year_week)) |>
   group_by(county_fips) |>
   mutate(
-    summer_mean = mean(pcr_target_flowpop_lin_sum_interpolated[month %in% 6:9], na.rm = TRUE),
-    county_sd = sd(pcr_target_flowpop_lin_sum_interpolated, na.rm = TRUE),
+    summer_mean = mean(pcr_target_flowpop_lin_sum_linear_interpolated[month %in% 6], na.rm = TRUE),
+    county_sd = sd(pcr_target_flowpop_lin_sum_linear_interpolated, na.rm = TRUE),
     pcr_target_flowpop_lin_sum_interpolated_scaled = 
-      (pcr_target_flowpop_lin_sum_interpolated - summer_mean) / county_sd
+      (pcr_target_flowpop_lin_sum_linear_interpolated - summer_mean) / county_sd
   ) |>
   ungroup()
 saveRDS(CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard.RDS")

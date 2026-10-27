@@ -29,6 +29,7 @@ counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
   summarise(n=n(),
             )|>
   pull(county_fips)
+n_dropped_chc=n_distinct(county_flu_ac_season_norm$county_fips)- n_distinct(counties_to_keep_CHC)
 county_flu_ac_season_norm_ts <- county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC)
 saveRDS(county_flu_ac_season_norm_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
 # Standardization ---------------------------------------------------------
