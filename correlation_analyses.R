@@ -19,7 +19,9 @@ pacman::p_load(tidyverse,
                webshot2,
                htmlwidgets,
                ggforce,
-               TSA)
+               TSA, 
+               sf,
+               st)
 
 # Import cleaned and standardized series ----------------------------------
 wwscan_flu_city_agg_with_county_info_ts_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
@@ -209,7 +211,7 @@ dev.off()
 
 # Compute Correlations ----------------------------------------------------
 # Pre-whiten series --------------------------------------------------------
-wwscan_chc_joined_pw <- wwscan_chc_joined |> filter(season=="2023-2024")|> 
+wwscan_chc_joined_pw <- wwscan_chc_joined |> filter(season=="2023-2024",year_week_dt >= as.Date("2023-10-01") & year_week_dt <= as.Date("2024-06-15"))|> 
   group_by_key() |>
   nest() |>
   mutate(
@@ -220,7 +222,7 @@ wwscan_chc_joined_pw <- wwscan_chc_joined |> filter(season=="2023-2024")|>
       order.max=3,
     plot=F))
     )
-nwss_chc_joined_pw <- nwss_chc_joined |> filter(season=="2023-2024")|>
+nwss_chc_joined_pw <- nwss_chc_joined |> filter(season=="2023-2024", year_week_dt >= as.Date("2023-10-01") & year_week_dt <= as.Date("2024-06-15"))|>
   group_by_key() |>
   nest() |>
   mutate(
@@ -308,8 +310,8 @@ for (i in 1:n_pages_wwscan_pw) {
 dev.off()
 
 # Naïve CCF
-wwscan_chc_joined_CCF<- wwscan_chc_joined |> filter(season=="2023-2024")|> group_by_key()|> CCF(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled, conf_flu_standard, lag_max = 5, type="correlation")
-nwss_chc_joined_CCF <- nwss_chc_joined|> filter(season=="2023-2024")|> group_by_key() |> CCF(pcr_target_flowpop_lin_sum_interpolated_scaled, conf_flu_standard, lag_max = 5, type = "correlation")
+wwscan_chc_joined_CCF<- wwscan_chc_joined |> filter(season=="2023-2024",year_week_dt >= as.Date("2023-10-01") & year_week_dt <= as.Date("2024-06-15"))|> group_by_key()|> CCF(Influenza_A_gc_g_dry_weight_pop_wt_imputed_scaled, conf_flu_standard, lag_max = 5, type="correlation")
+nwss_chc_joined_CCF <- nwss_chc_joined|> filter(season=="2023-2024",  year_week_dt >= as.Date("2023-10-01") & year_week_dt <= as.Date("2024-06-15"))|> group_by_key() |> CCF(pcr_target_flowpop_lin_sum_interpolated_scaled, conf_flu_standard, lag_max = 5, type = "correlation")
 
 
 # Plot cross-correlation estimates by county ---------------------------------------
@@ -680,3 +682,115 @@ html_table <- kable(comparison_table,
 #                   output = "Figures/ccf_lag_summary_tables.pdf",
 #                   vwidth = 1400,   # width in pixels (14 inches × 100)
 #                   vheight = 800)   # height in pixels (8 inches × 100)
+
+
+
+
+
+# Map of maximum lag of CCF -----------------------------------------------
+
+
+#shapefile
+
+US_county_shape<- st_read("Shapefiles/cb_2020_us_county_5m/cb_2020_us_county_5m.shp")
+
+# Extract maximum lag for naive WWSCAN CCF
+wwscan_naive_max_lag <- wwscan_chc_joined_CCF |>
+  group_by(county_fips) |>
+  slice(which.max(abs(ccf))) |>
+  select(county_fips, lag, ccf) |>
+  mutate(max_lag_naive = as.numeric(lag)) |>
+  select(county_fips, max_lag_naive)
+
+# Extract maximum lag for naive NWSS CCF
+nwss_naive_max_lag <- nwss_chc_joined_CCF |>
+  group_by(county_fips) |>
+  slice(which.max(abs(ccf))) |>
+  select(county_fips, lag, ccf) |>
+  mutate(max_lag_naive = as.numeric(lag)) |>
+  select(county_fips, max_lag_naive)
+
+# Extract maximum lag for pre-whitened WWSCAN CCF
+wwscan_pw_max_lag <- wwscan_chc_joined_pw_ccf |>
+  group_by(county_fips) |>
+  slice(which.max(abs(acf))) |>
+  select(county_fips, lag, acf) |>
+  mutate(max_lag_pw = as.numeric(lag)) |>
+  select(county_fips, max_lag_pw)
+
+# Extract maximum lag for pre-whitened NWSS CCF
+nwss_pw_max_lag <- nwss_chc_joined_pw_ccf |>
+  group_by(county_fips) |>
+  slice(which.max(abs(acf))) |>
+  select(county_fips, lag, acf) |>
+  mutate(max_lag_pw = as.numeric(lag)) |>
+  select(county_fips, max_lag_pw)
+
+# Merge with shapefile - WWSCAN
+wwscan_map_data <- US_county_shape |>
+  left_join(wwscan_naive_max_lag, by = c("GEOID" = "county_fips")) |>
+  left_join(wwscan_pw_max_lag, by = c("GEOID" = "county_fips"))
+
+# Merge with shapefile - NWSS
+nwss_map_data <- US_county_shape |>
+  left_join(nwss_naive_max_lag, by = c("GEOID" = "county_fips")) |>
+  left_join(nwss_pw_max_lag, by = c("GEOID" = "county_fips"))
+
+
+# Plot WWSCAN - Naive CCF
+ggplot(wwscan_map_data) +
+  geom_sf(aes(fill = max_lag_naive), color = NA) +
+  scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
+  labs(title = "WWSCAN: Maximum Lag of CCF (Naive)",
+       subtitle = "Epidemic Period: October 1, 2023 - June 15, 2024") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+# Plot WWSCAN - Pre-whitened CCF
+ggplot(wwscan_map_data) +
+  geom_sf(aes(fill = max_lag_pw), color = NA) +
+  scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
+  labs(title = "WWSCAN: Maximum Lag of CCF (Pre-whitened)",
+       subtitle = "Epidemic Period: October 1, 2023 - June 15, 2024") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+# Plot NWSS - Naive CCF
+ggplot(nwss_map_data) +
+  geom_sf(aes(fill = max_lag_naive), color = NA) +
+  scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
+  labs(title = "NWSS: Maximum Lag of CCF (Naive)",
+       subtitle = "Epidemic Period: October 1, 2023 - June 15, 2024") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+# Plot NWSS - Pre-whitened CCF
+ggplot(nwss_map_data) +
+  geom_sf(aes(fill = max_lag_pw), color = NA) +
+  scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
+  labs(title = "NWSS: Maximum Lag of CCF (Pre-whitened)",
+       subtitle = "Epidemic Period: October 1, 2023 - June 15, 2024") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+# Side-by-side comparison for WWSCAN
+library(patchwork)
+p1 <- ggplot(wwscan_map_data) +
+  geom_sf(aes(fill = max_lag_naive), color = NA) +
+  scale_fill_viridis_c(name = "Lag (weeks)", na.value = "gray90") +
+  labs(title = "Naive CCF") +
+  theme_minimal() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+
+p2 <- ggplot(wwscan_map_data) +
+  geom_sf(aes(fill = max_lag_pw), color = NA) +
+  scale_fill_viridis_c(name = "Lag (weeks)", na.value = "gray90") +
+  labs(title = "Pre-whitened CCF") +
+  theme_minimal() +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+
+p1 + p2 + plot_annotation(title = "WWSCAN: Maximum CCF Lag by County")
