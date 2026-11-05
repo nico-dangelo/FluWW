@@ -21,13 +21,14 @@ pacman::p_load(tidyverse,
                ggforce,
                TSA, 
                sf,
-               st)
+               st,
+               choroplethr)
 
 # Import cleaned and standardized series ----------------------------------
 wwscan_flu_city_agg_with_county_info_ts_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/wwscan_flu_city_agg_with_county_info_ts_standard.RDS")
 county_flu_ac_season_norm_ts_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/county_flu_ac_season_norm_ts_standard.RDS")
 CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard <- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/CDC_Wastewater_Data_for_Influenza_A_20260910_clean_multi_yw_aggregate_ts_interpolated_standard.RDS") 
-
+county_week_conf_flu_inpatient_imputed_ts_standard<- readRDS("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/county_week_conf_flu_inpatient_imputed_ts_standard.RDS")
 
 
 
@@ -284,7 +285,7 @@ for (i in 1:n_pages_nwss) {
 
 dev.off()
 
-pdf("ccf_wwscan_pw.pdf", width = 10, height = 9)
+pdf("Figures/ccf_wwscan_pw.pdf", width = 10, height = 9)
 
 ccf_plot_wwscan_pw <- wwscan_chc_joined_pw_ccf |>
   ggplot(aes(x = lag, y = acf)) +
@@ -737,8 +738,8 @@ nwss_map_data <- US_county_shape |>
   left_join(nwss_pw_max_lag, by = c("GEOID" = "county_fips"))
 
 
-# Plot WWSCAN - Naive CCF
-ggplot(wwscan_map_data) +
+# Save WWSCAN - Naive CCF
+p_wwscan_naive <- ggplot(wwscan_map_data) +
   geom_sf(aes(fill = max_lag_naive), color = NA) +
   scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
   labs(title = "WWSCAN: Maximum Lag of CCF (Naive)",
@@ -746,9 +747,10 @@ ggplot(wwscan_map_data) +
   theme_minimal() +
   theme(axis.text = element_blank(),
         axis.ticks = element_blank())
+ggsave("Figures/wwscan_ccf_naive_max_lag.pdf", p_wwscan_naive, width = 10, height = 8)
 
-# Plot WWSCAN - Pre-whitened CCF
-ggplot(wwscan_map_data) +
+# Save WWSCAN - Pre-whitened CCF
+p_wwscan_pw <- ggplot(wwscan_map_data) +
   geom_sf(aes(fill = max_lag_pw), color = NA) +
   scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
   labs(title = "WWSCAN: Maximum Lag of CCF (Pre-whitened)",
@@ -756,9 +758,10 @@ ggplot(wwscan_map_data) +
   theme_minimal() +
   theme(axis.text = element_blank(),
         axis.ticks = element_blank())
+ggsave("Figures/wwscan_ccf_prewhitened_max_lag.pdf", p_wwscan_pw, width = 10, height = 8)
 
-# Plot NWSS - Naive CCF
-ggplot(nwss_map_data) +
+# Save NWSS - Naive CCF
+p_nwss_naive <- ggplot(nwss_map_data) +
   geom_sf(aes(fill = max_lag_naive), color = NA) +
   scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
   labs(title = "NWSS: Maximum Lag of CCF (Naive)",
@@ -766,9 +769,10 @@ ggplot(nwss_map_data) +
   theme_minimal() +
   theme(axis.text = element_blank(),
         axis.ticks = element_blank())
+ggsave("Figures/nwss_ccf_naive_max_lag.pdf", p_nwss_naive, width = 10, height = 8)
 
-# Plot NWSS - Pre-whitened CCF
-ggplot(nwss_map_data) +
+# Save NWSS - Pre-whitened CCF
+p_nwss_pw <- ggplot(nwss_map_data) +
   geom_sf(aes(fill = max_lag_pw), color = NA) +
   scale_fill_viridis_c(name = "Maximum Lag (weeks)", na.value = "gray90") +
   labs(title = "NWSS: Maximum Lag of CCF (Pre-whitened)",
@@ -776,21 +780,10 @@ ggplot(nwss_map_data) +
   theme_minimal() +
   theme(axis.text = element_blank(),
         axis.ticks = element_blank())
+ggsave("Figures/nwss_ccf_prewhitened_max_lag.pdf", p_nwss_pw, width = 10, height = 8)
 
-# Side-by-side comparison for WWSCAN
-library(patchwork)
-p1 <- ggplot(wwscan_map_data) +
-  geom_sf(aes(fill = max_lag_naive), color = NA) +
-  scale_fill_viridis_c(name = "Lag (weeks)", na.value = "gray90") +
-  labs(title = "Naive CCF") +
-  theme_minimal() +
-  theme(axis.text = element_blank(), axis.ticks = element_blank())
-
-p2 <- ggplot(wwscan_map_data) +
-  geom_sf(aes(fill = max_lag_pw), color = NA) +
-  scale_fill_viridis_c(name = "Lag (weeks)", na.value = "gray90") +
-  labs(title = "Pre-whitened CCF") +
-  theme_minimal() +
-  theme(axis.text = element_blank(), axis.ticks = element_blank())
-
-p1 + p2 + plot_annotation(title = "WWSCAN: Maximum CCF Lag by County")
+# Save side-by-side comparison
+p_comparison <- p_wwscan_naive + p_wwscan_pw + plot_annotation(title = "WWSCAN: Maximum CCF Lag by County")
+ggsave("Figures/wwscan_ccf_comparison.pdf", p_comparison, width = 16, height = 8)
+p_nwss_comparison <- p_nwss_naive + p_nwss_pw + plot_annotation(title = "NWSS: Maximum CCF Lag by County")
+ggsave("Figures/nwss_ccf_comparison.pdf", p_nwss_comparison, width = 16, height = 8)

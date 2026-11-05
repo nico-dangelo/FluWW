@@ -16,12 +16,15 @@ pacman::p_load(tidyverse,
                ggforce)
 
 # Import CHC data ------------------------------------------
-county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")|> mutate(year_week=yearweek(year_week_dt))
+county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")
+# Import inpatient only CHC data
+county_week_conf_flu_inpatient_imputed <- read_csv("county_week_conf_flu_inpatient_imputed.csv") |> mutate(year_week=yearweek(year_week_dt))
 
 #Correct date format
 county_flu_ac_season_norm_yw <- mutate(county_flu_ac_season_norm, year_week=yearweek(year_week))
 #make tsibble
 county_flu_ac_season_norm_ts <- tsibble(county_flu_ac_season_norm_yw, index = year_week, key=county_fips)
+county_week_conf_flu_inpatient_imputed_ts <- tsibble(county_week_conf_flu_inpatient_imputed, index=year_week, key=county_fips)
 counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
   as_tibble() |>
   group_by(county_fips)|>
@@ -29,9 +32,11 @@ counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
   summarise(n=n(),
             )|>
   pull(county_fips)
-n_dropped_chc=n_distinct(county_flu_ac_season_norm$county_fips)- n_distinct(counties_to_keep_CHC)
+n_dropped_chc= n_distinct(county_flu_ac_season_norm$county_fips)- n_distinct(counties_to_keep_CHC)
 county_flu_ac_season_norm_ts <- county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC)
+county_week_conf_flu_inpatient_imputed_ts <- county_week_conf_flu_inpatient_imputed_ts |> filter(county_fips %in% counties_to_keep_CHC)
 saveRDS(county_flu_ac_season_norm_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
+saveRDS(county_week_conf_flu_inpatient_imputed_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_week_conf_flu_inpatient_imputed_ts.RDS")
 # Standardization ---------------------------------------------------------
 county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts |>
   mutate(month = month(year_week)) |>
@@ -43,6 +48,15 @@ county_flu_ac_season_norm_ts_standard <- county_flu_ac_season_norm_ts |>
   ) |>
   ungroup()
 saveRDS(county_flu_ac_season_norm_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/county_flu_ac_season_norm_ts_standard.RDS")
+county_week_conf_flu_inpatient_imputed_ts_standard <- county_week_conf_flu_inpatient_imputed_ts |>  mutate(month = month(year_week)) |>
+  group_by(county_fips) |>
+  mutate(
+    summer_mean = mean(conf_flu[month==6], na.rm = TRUE),
+    county_sd = sd(conf_flu, na.rm = TRUE),
+    conf_flu_standard = (conf_flu - summer_mean) / county_sd
+  ) |>
+  ungroup()
+saveRDS(county_week_conf_flu_inpatient_imputed_ts_standard, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Standardized_Time_Series/county_week_conf_flu_inpatient_imputed_ts_standard.RDS")
 #plot standardized series
 plot_data_scaled_chc <- county_flu_ac_season_norm_ts_standard |>
   as_tibble() |>
@@ -54,7 +68,12 @@ plot_data_scaled_chc <- county_flu_ac_season_norm_ts_standard |>
 counties <- unique(plot_data_scaled_chc$county_fips)
 counties_per_page <- 6  # 3 rows x 2 columns
 n_pages <- ceiling(length(counties) / counties_per_page)
-
+plot_data_scaled_inpatient_chc <- county_week_conf_flu_inpatient_imputed_ts_standard |>
+  as_tibble() |>
+  select(year_week, county_fips, 
+         original = conf_flu,
+         scaled = conf_flu_standard) |>
+  pivot_longer(cols = c(original, scaled), names_to = "type", values_to = "value")
 # Create paginated plots
 pdf("Figures/chc_influenza_standardized_by_county.pdf", width = 12, height = 14)
 
