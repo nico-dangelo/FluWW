@@ -15,27 +15,105 @@ pacman::p_load(tidyverse,
                fable,
                ggforce, update = F)
 
-# Import CHC data ------------------------------------------
-county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")
+# Import CHC data and normalize------------------------------------------
+county_week_flu_v3_imputed <- readr::read_csv("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_week_flu_v3_imputed.csv")
+
+# Clean data and fix formats -----------------------------------------------
+county_week_flu_v3_imputed_clean <- county_week_flu_v3_imputed
+county_week_flu_v3_imputed_clean$year_week_dt <- as_date(county_week_flu_v3_imputed$year_week_dt, format =
+                                                           "%G-%V-%u")
+# # Normalization -----------------------------------------------------------
+# #Import all cause mortality data
+county_week_ac_v3_imputed <- readr::read_csv("~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_week_ac_v3_imputed.csv")
+#merge ac with flu data by county and year_week
+
+df <- left_join(
+  county_week_flu_v3_imputed_clean,
+  county_week_ac_v3_imputed,
+  by = c("county_fips", "year_week")
+) |>
+  rename(all_cause_weekly = all_cause_wtd) |>
+  mutate(year = sub("-.*", "", year_week)) |>
+  group_by(county_fips, year) |>
+  # get mean of all cause weekly by county and year
+  mutate(
+    all_cause_weekly_mean = mean(all_cause_weekly, na.rm = TRUE)
+  ) |>
+  ungroup()
+# calculate weekly factor and scale up cases accordingly
+
+df <- df  |> mutate(all_cause_weekly_mean_factor = all_cause_weekly/all_cause_weekly_mean)
+df <- df |> mutate(conf_flu_adjusted = conf_flu/ all_cause_weekly_mean_factor)
+df <- df |> mutate(conf_flu_adjusted_norm=conf_flu_adjusted/all_cause_weekly)
+# county_flu_ac_season_norm <- readRDS(file = "~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/GNAR_FLU/Data/Flu/county_flu_ac_season_norm.RDS")
+
+# #Correct date format
+df_yw <- mutate(df, year_week=yearweek(year_week_dt))
+# #make tsibble
+ts <- tsibble(df_yw, index = year_week, key=county_fips)
+# counties_to_keep_CHC <- ts |>
+#   as_tibble() |>
+#   group_by(county_fips) |>
+#   filter(any(season == "2023-2024" & season_all_cause >= 5000 & conf_flu > 10, na.rm = TRUE)) |>
+#   ungroup() |>
+#   distinct(county_fips) |>
+#   pull(county_fips)
+
 # Import inpatient only CHC data
-county_week_conf_flu_inpatient_imputed <- read_csv("county_week_conf_flu_inpatient_imputed.csv") |> mutate(year_week=yearweek(year_week_dt))
+df_inpatient <- read_csv("county_week_conf_flu_inpatient_imputed.csv") |> mutate(year=sub("-.*", "", year_week))
 
-#Correct date format
-county_flu_ac_season_norm_yw <- mutate(county_flu_ac_season_norm, year_week=yearweek(year_week_dt))
-#make tsibble
-county_flu_ac_season_norm_ts <- tsibble(county_flu_ac_season_norm_yw, index = year_week, key=county_fips)
-county_week_conf_flu_inpatient_imputed_ts <- tsibble(county_week_conf_flu_inpatient_imputed, index=year_week, key=county_fips)
-counties_to_keep_CHC <- county_flu_ac_season_norm_ts |>
-  as_tibble() |>
-  group_by(county_fips) |>
-  filter(any(season == "2023-2024" & season_all_cause >= 5000 & conf_flu > 10, na.rm = TRUE)) |>
-  ungroup() |>
-  distinct(county_fips) |>
-  pull(county_fips)
+# Compute Inpatient and Outpatient Incidence ------------------------------
+df_inpatient_all_cause <- left_join(df_inpatient,county_week_ac_v3_imputed, by=c("county_fips", "year_week"))|> rename(conf_flu_inpatient=conf_flu, all_cause_weekly=all_cause_wtd)
+df_inpatient_all_cause_mean <- df_inpatient_all_cause |> group_by(county_fips, year) |>
+  # get mean of all cause weekly by county and year
+  mutate(
+    all_cause_weekly_mean = mean(all_cause_weekly, na.rm = TRUE)
+  ) |>
+  ungroup()
+df_inpatient_all_cause_mean<- df_inpatient_all_cause |> mutate(all_cause_weekly_mean_factor = all_cause_weekly/all_cause_weekly_mean, 
+                                                               conf_flu_inpatient_adjusted=conf_flu_inpatient/all_cause_weekly_mean_factor, 
+                                                               conf_flu_inpatient_adjusted_norm=conf_flu_inpatient_adjusted/all_cause_weekly)
+df_inpatient_outpatient <- left_join(df, df_inpatient_all_cause_mean, by=c("county_fips", "year_week")) |> mutate(conf_flu_outpatient=conf_flu - conf_flu_inpatient, 
+                                                                 conf_flu_outpatient_adjusted=conf_flu_outpatient/conf_flu_outpatient / all_cause_weekly_mean_factor,
+                                                                 conf_flu_outpatient_adjusted_norm = conf_flu_outpatient_adjusted / all_cause_weekly.x) #check this
 
-n_dropped_chc= n_distinct(county_flu_ac_season_norm$county_fips)- n_distinct(counties_to_keep_CHC)
-county_flu_ac_season_norm_ts <- county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC)
-county_week_conf_flu_inpatient_imputed_ts <- county_week_conf_flu_inpatient_imputed_ts |> filter(county_fips %in% counties_to_keep_CHC)
+
+# Repeat as Seasonal scale ------------------------------------------------
+library(dplyr)
+
+df_inpatient_outpatient_seeason <- df_inpatient_outpatient %>%
+  mutate(
+    month = as.integer(format(year_week_dt.x, "%m")),
+    yr = as.integer(format(year_week_dt.x, "%Y")),
+    # season starts in October of year n and ends in April of year n+1
+    season_start = ifelse(month >= 10, yr, yr - 1),
+    season = ifelse(month >= 5 & month <= 9, NA_character_,
+                    paste0(season_start, "-", season_start + 1))
+  ) %>%
+  # within mean of all-cause weekly, per season
+  group_by(county_fips, season) %>%
+  mutate(all_cause_county_season_mean = mean(all_cause_weekly.x, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(
+    # outpatient = total - inpatient (done before adjustment)
+    conf_flu_outpatient = conf_flu - conf_flu_inpatient,
+    
+    # step (i): weekly factor relative to the cross-county season mean
+    weekly_means_factor = all_cause_weekly.x / all_cause_county_season_mean,
+    conf_flu_adjusted = conf_flu / weekly_means_factor,
+    conf_flu_inp_adjusted = conf_flu_inpatient / weekly_means_factor,
+    conf_flu_outp_adjusted = conf_flu_outpatient / weekly_means_factor,
+    
+    # step (ii): normalize by county all-cause weekly
+    conf_flu_adjusted_norm = conf_flu_adjusted / all_cause_weekly.x,
+    conf_flu_inp_adjusted_norm = conf_flu_inp_adjusted / all_cause_weekly.x,
+    conf_flu_outp_adjusted_norm = conf_flu_outp_adjusted / all_cause_weekly.x
+  )
+
+
+# n_dropped_chc= n_distinct(county_flu_ac_season_norm$county_fips)- n_distinct(counties_to_keep_CHC)
+# county_flu_ac_season_norm_ts <- county_flu_ac_season_norm_ts |> filter(county_fips %in% counties_to_keep_CHC)
+# county_week_conf_flu_inpatient_imputed_ts <- county_week_conf_flu_inpatient_imputed_ts |> filter(county_fips %in% counties_to_keep_CHC)
 # saveRDS(county_flu_ac_season_norm_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_flu_ac_season_norm_ts.RDS")
 # saveRDS(county_week_conf_flu_inpatient_imputed_ts, file="~/Library/CloudStorage/GoogleDrive-nd672@georgetown.edu/My Drive/Lab Files/FluWW/Imputed_Time_Series/county_week_conf_flu_inpatient_imputed_ts.RDS")
 # Standardization ---------------------------------------------------------
